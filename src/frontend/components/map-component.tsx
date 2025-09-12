@@ -18,28 +18,32 @@ L.Icon.Default.mergeOptions({
 interface MapComponentProps {
 	lat: number;
 	lon: number;
-	radiusInMiles: number; // New prop
+	area: number; // in square meters
 }
 
-// A helper component to dynamically update map view
-function MapUpdater({ radiusInMiles }: { radiusInMiles: number }) {
+const MapUpdater: React.FC<{ center: [number, number]; radius: number }> = ({
+	center,
+	radius,
+}) => {
 	const map = useMap();
 	useEffect(() => {
-		let zoomLevel = 14; // Default for 1 mile
-		if (radiusInMiles === 3) zoomLevel = 12;
-		if (radiusInMiles === 5) zoomLevel = 11;
-		map.setZoom(zoomLevel);
-	}, [radiusInMiles, map]);
+		if (radius > 0) {
+			const circle = L.circle(center, { radius });
+			map.fitBounds(circle.getBounds());
+		} else {
+			map.setView(center, 14);
+		}
+	}, [map, center, radius]);
 	return null;
-}
+};
 
 const MapComponent: React.FC<MapComponentProps> = ({
 	lat,
 	lon,
-	radiusInMiles,
+	area,
 }) => {
 	const position: [number, number] = [lat, lon];
-	const radiusInMeters = radiusInMiles * 1609.34;
+	const radius = area > 0 ? Math.sqrt(area / Math.PI) : 0;
 
 	return (
 		<MapContainer
@@ -51,25 +55,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
 				borderRadius: "var(--radius)",
 			}}
 			scrollWheelZoom={false}
-			key={`${lat}-${lon}-${radiusInMiles}`} // Force re-render on radius change
 		>
 			<TileLayer
 				attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 				url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 			/>
 			<Marker position={position} />
-			<Circle
-				center={position}
-				pathOptions={{
-					color: "hsl(var(--primary))",
-					fillColor: "hsl(var(--primary))",
-				}}
-				radius={radiusInMeters}
-				fillOpacity={0.1}
-				stroke={true}
-				weight={2}
-			/>
-			<MapUpdater radiusInMiles={radiusInMiles} />
+			{radius > 0 && <Circle center={position} radius={radius} />}
+			<MapUpdater center={position} radius={radius} />
 		</MapContainer>
 	);
 };

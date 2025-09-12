@@ -10,6 +10,7 @@ export type MarketDataRequest = z.infer<typeof marketDataRequestSchema>;
 const populationTrendPointSchema = z.object({
 	year: z.number(),
 	population: z.number(),
+	is_projection: z.boolean().optional().default(false)
 });
 
 const ageDistributionSchema = z.object({
@@ -93,6 +94,7 @@ export const populationDataResponseSchema = z.object({
 	geography_name: z.string(),
 	geography_level: z.enum(["tract", "county"]),
 	coordinates: coordinatesSchema,
+	tract_area_sq_meters: z.number(),
 	total_population: z.number(),
 	median_age: z.number().nullable(),
 	growth: growthMetricsSchema,

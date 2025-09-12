@@ -46,7 +46,6 @@ import {
 import type { PopulationDataResponse } from "@lib/schemas";
 import { cn } from "@lib/utils";
 import DynamicMap from "@components/dynamic-map";
-import { ToggleGroup, ToggleGroupItem } from "@components/ui/toggle-group";
 
 interface PopulationMetricsCardProps {
 	isLoading: boolean;
@@ -105,8 +104,6 @@ export function PopulationMetricsCard({
 	error,
 	data,
 }: PopulationMetricsCardProps) {
-	const [mapRadius, setMapRadius] = React.useState<number>(1);
-
 	if (isLoading)
 		return (
 			<Card className="w-full max-w-3xl">
@@ -168,29 +165,18 @@ export function PopulationMetricsCard({
 			: [];
 	const TENURE_COLORS = ["hsl(var(--primary))", "hsl(var(--muted))"];
 
-	const allTrendPoints = [
-		...population_trends.trend,
-		...population_trends.projection,
-	];
-
-	const trendDataWithBenchmarks = allTrendPoints.map((point) => {
-		const countyPoint = population_trends.benchmark?.county_trend.find(
-			(p) => p.year === point.year
-		);
-		const statePoint = population_trends.benchmark?.state_trend.find(
-			(p) => p.year === point.year
-		);
-		const nationalPoint = population_trends.benchmark?.national_trend.find(
-			(p) => p.year === point.year
-		);
-		return {
-			year: point.year,
-			[data.geography_name]: point.population,
-			...(countyPoint && { County: countyPoint.population }),
-			...(statePoint && { State: statePoint.population }),
-			...(nationalPoint && { National: nationalPoint.population }),
-		};
-	});
+	const trendData = population_trends.trend.map((p) => ({
+		year: p.year,
+		[data.geography_name]: p.population,
+		County:
+			population_trends.benchmark?.county_trend.find(
+				(b) => b.year === p.year
+			)?.population ?? null,
+		State:
+			population_trends.benchmark?.state_trend.find(
+				(b) => b.year === p.year
+			)?.population ?? null,
+	}));
 
 	const projectionDataForChart =
 		population_trends.trend.length > 0
@@ -199,7 +185,7 @@ export function PopulationMetricsCard({
 					...population_trends.projection,
 			  ].map((p) => ({
 					year: p.year,
-					[data.geography_name]: p.population,
+					Projection: p.population,
 			  }))
 			: [];
 
@@ -337,9 +323,7 @@ export function PopulationMetricsCard({
 										width="100%"
 										height="100%"
 									>
-										<LineChart
-											data={trendDataWithBenchmarks}
-										>
+										<LineChart data={trendData}>
 											<CartesianGrid strokeDasharray="3 3" />
 											<XAxis
 												dataKey="year"
@@ -367,21 +351,20 @@ export function PopulationMetricsCard({
 											{projectionDataForChart.length >
 												1 && (
 												<Line
-													type="monotone"
-													dataKey={
-														data.geography_name
-													}
-													name="Projection"
 													data={
 														projectionDataForChart
 													}
+													type="monotone"
+													dataKey="Projection"
+													name={`${data.geography_name} (Proj.)`}
 													stroke="hsl(var(--chart-2))"
 													strokeWidth={2}
 													strokeDasharray="3 3"
+													dot={{ r: 2 }}
+													activeDot={{ r: 4 }}
 												/>
 											)}
-											{trendDataWithBenchmarks[0]
-												?.County != null && (
+											{trendData[0]?.County != null && (
 												<Line
 													type="monotone"
 													dataKey="County"
@@ -390,8 +373,7 @@ export function PopulationMetricsCard({
 													dot={false}
 												/>
 											)}
-											{trendDataWithBenchmarks[0]
-												?.State != null && (
+											{trendData[0]?.State != null && (
 												<Line
 													type="monotone"
 													dataKey="State"
@@ -408,12 +390,101 @@ export function PopulationMetricsCard({
 					</TabsContent>
 
 					<TabsContent value="drivers" className="mt-6">
-						<div className="flex h-64 items-center justify-center">
-							<p className="text-muted-foreground">
-								Migration and Natural Increase data are not
-								available for tract-level analysis.
-							</p>
-						</div>
+						{migration && natural_increase ? (
+							<div className="grid md:grid-cols-2 gap-8 items-center">
+								<div>
+									<h3 className="text-md font-semibold mb-2">
+										Migration Drivers (County)
+									</h3>
+									<div className="h-64 w-full">
+										<ResponsiveContainer
+											width="100%"
+											height="100%"
+										>
+											<BarChart
+												data={migrationData}
+												margin={{ left: 10 }}
+											>
+												<CartesianGrid strokeDasharray="3 3" />
+												<XAxis
+													dataKey="name"
+													tickLine={false}
+													axisLine={false}
+												/>
+												<YAxis />
+												<Tooltip
+													cursor={{
+														fill: "hsl(var(--muted))",
+													}}
+													formatter={(
+														value: number
+													) => value.toLocaleString()}
+												/>
+												<Bar
+													dataKey="value"
+													radius={[4, 4, 0, 0]}
+												/>
+											</BarChart>
+										</ResponsiveContainer>
+									</div>
+								</div>
+								<div>
+									<h3 className="text-md font-semibold mb-2">
+										Natural Increase (County)
+									</h3>
+									<div className="h-64 w-full">
+										<ResponsiveContainer
+											width="100%"
+											height="100%"
+										>
+											<BarChart
+												data={naturalIncreaseData}
+												margin={{ left: 10 }}
+											>
+												<CartesianGrid strokeDasharray="3 3" />
+												<XAxis
+													dataKey="name"
+													tickLine={false}
+													axisLine={false}
+												/>
+												<YAxis />
+												<Tooltip
+													cursor={{
+														fill: "hsl(var(--muted))",
+													}}
+													formatter={(
+														value: number
+													) => value.toLocaleString()}
+												/>
+												{naturalIncreaseData.map(
+													(entry, index) => (
+														<Bar
+															key={`bar-${index}`}
+															dataKey="value"
+															fill={
+																NATURAL_COLORS[
+																	index %
+																		NATURAL_COLORS.length
+																]
+															}
+															radius={[
+																4, 4, 0, 0,
+															]}
+														/>
+													)
+												)}
+											</BarChart>
+										</ResponsiveContainer>
+									</div>
+								</div>
+							</div>
+						) : (
+							<div className="flex h-64 items-center justify-center">
+								<p className="text-muted-foreground">
+									County-level driver data not available.
+								</p>
+							</div>
+						)}
 					</TabsContent>
 
 					<TabsContent value="demographics" className="mt-6">
@@ -555,31 +626,11 @@ export function PopulationMetricsCard({
 					</TabsContent>
 
 					<TabsContent value="map" className="mt-6">
-						<div className="flex justify-center mb-4">
-							<ToggleGroup
-								type="single"
-								value={String(mapRadius)}
-								onValueChange={(val) =>
-									val && setMapRadius(Number(val))
-								}
-								aria-label="Map Radius"
-							>
-								<ToggleGroupItem value="1">
-									1-Mile Radius
-								</ToggleGroupItem>
-								<ToggleGroupItem value="3">
-									3-Mile Radius
-								</ToggleGroupItem>
-								<ToggleGroupItem value="5">
-									5-Mile Radius
-								</ToggleGroupItem>
-							</ToggleGroup>
-						</div>
 						<div className="h-96 w-full">
 							<DynamicMap
 								lat={data.coordinates.lat}
 								lon={data.coordinates.lon}
-								radiusInMiles={mapRadius}
+								area={data.tract_area_sq_meters}
 							/>
 						</div>
 					</TabsContent>

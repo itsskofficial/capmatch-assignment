@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { Compass, BarChartHorizontal } from "lucide-react";
+import { Compass, BarChartHorizontal, AreaChart, Users, Home } from "lucide-react";
 
 import {
 	ResizablePanelGroup,
@@ -24,6 +24,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@components/ui/tabs";
 
 import type { AddressEntry } from "@lib/types";
 import {
@@ -112,11 +113,30 @@ export default function HomePage() {
 
 	return (
 		<div className="flex min-h-screen w-full bg-muted/40">
-			<FloatingDock
-				items={dockItems}
-				activeMode={mode}
-				onModeChange={(newMode) => setMode(newMode)}
-			/>
+			<aside className="fixed inset-y-0 left-0 z-10 hidden w-24 flex-col border-r bg-background sm:flex">
+				<div className="flex h-16 shrink-0 items-center justify-center border-b px-2">
+					{/* CapMatch Logo */}
+					<svg
+						className="h-8 w-8 text-primary"
+						xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+					>
+						<path d="M12 2L2 7l10 5 10-5-10-5z" />
+						<path d="M2 17l10 5 10-5" />
+						<path d="M2 12l10 5 10-5" />
+					</svg>
+				</div>
+				<FloatingDock
+					items={dockItems}
+					activeMode={mode}
+					onModeChange={(newMode) => setMode(newMode)}
+				/>
+			</aside>
 
 			<div className="w-full pl-24">
 				<ResizablePanelGroup direction="horizontal" className="w-full">
@@ -139,9 +159,40 @@ export default function HomePage() {
 										</CardDescription>
 									</CardHeader>
 									<CardContent className="flex-grow">
-										<ComparisonChart
-											addresses={successfulAddresses}
-										/>
+										<Tabs defaultValue="growth" className="h-full flex flex-col">
+											<TabsList className="grid w-full grid-cols-3">
+												<TabsTrigger value="growth">
+													<AreaChart className="mr-2 h-4 w-4" />
+													Population Growth
+												</TabsTrigger>
+												<TabsTrigger value="demographics">
+													<Users className="mr-2 h-4 w-4" />
+													Demographics
+												</TabsTrigger>
+												<TabsTrigger value="housing">
+													<Home className="mr-2 h-4 w-4" />
+													Housing
+												</TabsTrigger>
+											</TabsList>
+											<TabsContent value="growth" className="flex-grow mt-4">
+												<ComparisonChart
+													addresses={successfulAddresses}
+													metric="population_trend"
+												/>
+											</TabsContent>
+											<TabsContent value="demographics" className="flex-grow mt-4">
+												<ComparisonChart
+													addresses={successfulAddresses}
+													metric="demographics"
+												/>
+											</TabsContent>
+											<TabsContent value="housing" className="flex-grow mt-4">
+												<ComparisonChart
+													addresses={successfulAddresses}
+													metric="housing"
+												/>
+											</TabsContent>
+										</Tabs>
 									</CardContent>
 								</Card>
 							)}
@@ -159,6 +210,8 @@ export default function HomePage() {
 								<div className="p-4 md:p-6 lg:p-8">
 									<MultiAddressInput
 										onAddAddress={addAddress}
+										addresses={addresses}
+										onRemoveAddress={removeAddress}
 									/>
 								</div>
 							</ScrollArea>

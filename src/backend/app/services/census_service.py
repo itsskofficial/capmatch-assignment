@@ -8,6 +8,7 @@ import numpy as np
 from census import Census
 from httpx import AsyncClient
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from loguru import logger
@@ -22,8 +23,8 @@ from app.models.population import PopulationCache
 
 # --- Constants ---
 # Use the latest available ACS 5-year data release year.
-LATEST_ACS_YEAR = 2023 
-HISTORICAL_YEARS_COUNT = 5
+LATEST_ACS_YEAR = 2022
+HISTORICAL_YEARS_COUNT = 10
 
 # --- ACS 5-Year Variables (For static demographics) ---
 ACS_VARS = {
@@ -38,6 +39,10 @@ ACS_VARS = {
     "B01001_027E": "f_under_5", "B01001_028E": "f_5_9", "B01001_029E": "f_10_14", "B01001_030E": "f_15_17", "B01001_031E": "f_18_19", "B01001_032E": "f_20", "B01001_033E": "f_21", "B01001_034E": "f_22_24", "B01001_035E": "f_25_29", "B01001_036E": "f_30_34", "B01001_037E": "f_35_39", "B01001_038E": "f_40_44", "B01001_039E": "f_45_49", "B01001_040E": "f_50_54", "B01001_041E": "f_55_59", "B01001_042E": "f_60_61", "B01001_043E": "f_62_64",
     "B01001_044E": "f_65_66", "B01001_045E": "f_67_69", "B01001_046E": "f_70_74", "B01001_047E": "f_75_79", "B01001_048E": "f_80_84", "B01001_049E": "f_85_over",
 }
+
+# --- Population Estimates Program (PEP) Variables (For drivers of change) ---
+PEP_VARS = ("POP", "BIRTHS", "DEATHS", "NATURALINC", "NETMIG", "DOMESTICMIG", "INTERNATIONALMIG")
+
 
 class CensusService:
     def __init__(self):
@@ -56,8 +61,12 @@ class CensusService:
         result = await db.execute(stmt)
         cached_data = result.scalars().first()
         if cached_data:
-            logger.success(f"Cache HIT for key: {cache_key}. Returning cached data.")
-            return PopulationDataResponse.model_validate(cached_data.response_data)
+            try:
+                logger.success(f"Cache HIT for key: {cache_key}. Validating and returning cached data.")
+                return PopulationDataResponse.model_validate(cached_data.response_data)
+            except ValidationError as e:
+                logger.warning(f"Cache data for key '{cache_key}' is invalid due to schema mismatch. Refetching. Error: {e}")
+                # Treat as a cache miss and proceed to fetch fresh data.
         
         logger.info(f"Cache MISS for key: {cache_key}. Starting fresh data fetch.")
         
@@ -65,17 +74,18 @@ class CensusService:
         fips, coords, aland = geo_info['fips'], geo_info['coords'], geo_info['aland']
         logger.info(f"Geocoding successful. FIPS: {fips}, ALAND: {aland}")
 
-        historical_years = list(range(LATEST_ACS_YEAR - HISTORICAL_YEARS_COUNT + 1, LATEST_ACS_YEAR + 1))
+        historical_years = list(range(LATEST_ACS_YEAR - HISTORICAL_YEARS_COUNT, LATEST_ACS_YEAR))
         logger.info(f"Requesting historical data for ACS 5-Year periods ending in: {historical_years}")
-        
+
         logger.info("Creating concurrent tasks for data fetching.")
         tasks = {
-            "main_acs_data": self._fetch_acs_data(fips, LATEST_ACS_YEAR, 'tract', list(ACS_VARS.keys())),
+            "main_acs_data": self._fetch_acs_data(fips, LATEST_ACS_YEAR -1, 'tract', list(ACS_VARS.keys())),
             "tract_trend": self._fetch_population_trend_acs(fips, historical_years, 'tract'),
             "county_trend": self._fetch_population_trend_acs(fips, historical_years, 'county'),
             "state_trend": self._fetch_population_trend_acs(fips, historical_years, 'state'),
             "national_trend": self._fetch_population_trend_acs({}, historical_years, 'us'),
             "walkability": self._get_walkability_scores(address, lat=coords['lat'], lon=coords['lon']),
+            "county_drivers": self._fetch_pep_county_components(fips, LATEST_ACS_YEAR - 1)
         }
 
         logger.info(f"Executing {len(tasks)} tasks concurrently...")
@@ -89,15 +99,27 @@ class CensusService:
                 if name in ["main_acs_data", "tract_trend", "county_trend"]:
                     raise HTTPException(status_code=503, detail=f"Failed to fetch required data for {name}: {result}")
                 task_results[name] = None
-            else:
-                logger.debug(f"Task '{name}' completed successfully.")
-        
+
         tract_trend = task_results.get("tract_trend") or []
         county_trend = task_results.get("county_trend") or []
-        
+
         logger.info("Projecting tract population based on county trends.")
         projections = self._project_tract_population(tract_trend, county_trend)
         logger.info(f"Generated {len(projections)} years of projected data.")
+
+        migration_data = None
+        natural_increase_data = None
+        drivers = task_results.get("county_drivers")
+        if drivers and drivers.get("POP", 0) > 0:
+            total_county_pop = drivers["POP"]
+            migration_data = MigrationData(
+                net_migration=drivers["NETMIG"], net_migration_rate=round((drivers["NETMIG"] / total_county_pop) * 100, 2),
+                domestic_migration=drivers["DOMESTICMIG"], international_migration=drivers["INTERNATIONALMIG"]
+            )
+            natural_increase_data = NaturalIncreaseData(
+                births=drivers["BIRTHS"], deaths=drivers["DEATHS"], natural_change=drivers["NATURALINC"],
+                natural_increase_rate=round((drivers["NATURALINC"] / total_county_pop) * 1000, 2)
+            )
 
         logger.info("Formatting all retrieved data into the final response model.")
         response_data = self._format_response_data(
@@ -110,8 +132,9 @@ class CensusService:
                 national_trend=task_results.get("national_trend") or [],
             ),
             walkability=task_results.get("walkability"),
-            address=address, year=LATEST_ACS_YEAR, geo_level='tract',
-            aland=aland, coordinates=Coordinates(lat=coords['lat'], lon=coords['lon'])
+            migration=migration_data, natural_increase=natural_increase_data,
+            address=address, year=LATEST_ACS_YEAR -1, geo_level='tract',
+            aland=aland, coordinates=Coordinates(lat=coords['lat'], lon=coords['lon']),
         )
         logger.info("Data formatting complete.")
 
@@ -127,47 +150,53 @@ class CensusService:
         return response_data
 
     async def _geocode_address(self, address: str) -> dict:
-        logger.info(f"Starting geocoding process for address: '{address}'")
+        """
+        Geocodes an address in a two-step process:
+        1. Use Nominatim (OpenStreetMap) to get reliable latitude/longitude.
+        2. Use the Census Geocoder with these coordinates to get FIPS codes and land area (ALAND).
+        This hybrid approach improves reliability over using a single geocoding service.
+        """
+        logger.info(f"Starting hybrid geocoding for address: '{address}'")
 
-        # Step 1: Get coordinates from address
-        logger.debug("Step 1: Fetching coordinates from Census onelineaddress endpoint.")
-        oneline_url = "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress"
-        params1 = {"format": "json", "benchmark": "Public_AR_Current", "address": address}
+        # Step 1: Get coordinates from Nominatim
+        logger.debug("Step 1: Fetching coordinates from Nominatim.")
+        nominatim_url = "https://nominatim.openstreetmap.org/search"
+        params1 = {"q": address, "format": "json", "addressdetails": 1, "limit": 1}
+        headers = {"User-Agent": "CapMatch/1.0"}
         try:
-            res1 = await self.http_client.get(oneline_url, params=params1)
+            res1 = await self.http_client.get(nominatim_url, params=params1, headers=headers)
             res1.raise_for_status()
             data1 = res1.json()
-            if not data1["result"]["addressMatches"]:
-                logger.error(f"No address matches found by Census Geocoder for '{address}'")
-                raise HTTPException(status_code=404, detail="Address could not be geocoded by Census Geocoder.")
-            coords = data1["result"]["addressMatches"][0]["coordinates"]
-            lat, lon = coords['y'], coords['x']
-            logger.debug(f"Successfully retrieved coordinates: (lat={lat}, lon={lon})")
-        except Exception as e:
-            logger.error(f"Census Geocoder (coordinates) failed for '{address}': {e}")
-            raise HTTPException(status_code=503, detail="Geocoding service failed at coordinate lookup.")
+            if not data1:
+                logger.error(f"No address matches found by Nominatim for '{address}'")
+                raise HTTPException(status_code=404, detail="Address not found by geocoder.")
 
-        # Step 2: Get geographies (FIPS and ALAND) using coordinates
+            lat = float(data1[0]['lat'])
+            lon = float(data1[0]['lon'])
+            logger.debug(f"Successfully retrieved coordinates from Nominatim: (lat={lat}, lon={lon})")
+        except Exception as e:
+            logger.error(f"Nominatim geocoder failed for '{address}': {e}")
+            raise HTTPException(status_code=503, detail="Geocoding service (Nominatim) failed.")
+
+        # Step 2: Get geographies (FIPS and ALAND) using coordinates from Census API
         logger.debug("Step 2: Fetching geographies (FIPS, ALAND) from Census coordinates endpoint.")
         geo_url = "https://geocoding.geo.census.gov/geocoder/geographies/coordinates"
-        vintage = f"ACS{LATEST_ACS_YEAR}_Current"
-        logger.debug(f"Using geography vintage: {vintage}")
+        vintage = f"ACS{LATEST_ACS_YEAR-1}_Current"
         params2 = {"format": "json", "benchmark": "Public_AR_Current", "vintage": vintage, "x": lon, "y": lat}
         try:
             res2 = await self.http_client.get(geo_url, params=params2)
             res2.raise_for_status()
             geos = res2.json()["result"]["geographies"]
-            
+
             county = next((g for g in geos.get("Counties", [])), None)
             tract = next((g for g in geos.get("Census Tracts", [])), None)
 
             if not county or not tract:
                 logger.error(f"Could not find tract/county for coordinates ({lat}, {lon})")
                 raise HTTPException(status_code=404, detail="Could not determine geographic boundaries (tract/county).")
-            
+
             fips = { "state": county["STATE"], "county": county["COUNTY"], "tract": tract["TRACT"] }
             aland = tract.get("ALAND", 0)
-            logger.debug(f"Successfully retrieved FIPS: {fips} and ALAND: {aland}")
             if aland == 0:
                 logger.warning(f"Census Geocoder returned land area of 0 for tract {tract.get('GEOID')}")
 
@@ -200,7 +229,7 @@ class CensusService:
         logger.debug(f"Projection base: Year {last_tract_point.year}, Population {current_pop}")
         
         current_year = datetime.datetime.now().year
-        projection_years = list(range(LATEST_ACS_YEAR + 1, current_year + 1))
+        projection_years = list(range(LATEST_ACS_YEAR, current_year + 1))
         logger.debug(f"Projecting for years: {projection_years}")
 
         for year in projection_years:
@@ -277,6 +306,23 @@ class CensusService:
             logger.error(f"Census ACS API call failed for ({geo_level}, {year}): {e}")
             return None
 
+    async def _fetch_pep_county_components(self, fips: Dict[str, str], year: int) -> Optional[Dict[str, Any]]:
+        logger.info(f"Fetching PEP components for county, year='{year}', fips='{fips}'.")
+        geo_filter = {'for': f"county:{fips['county']}", 'in': f"state:{fips['state']}"}
+        try:
+            async with self.census_api_semaphore:
+                loop = asyncio.get_running_loop()
+                data = await loop.run_in_executor(None, self.census_client.pep.components, PEP_VARS, geo_filter, year=year)
+            if not data:
+                logger.warning(f"No PEP data returned for county {fips} in {year}")
+                return None
+
+            logger.debug(f"Successfully received PEP data for county for year {year}.")
+            return {k: int(v) if v is not None else None for k, v in data[0].items()}
+        except Exception as e:
+            logger.error(f"Census PEP API call failed for county ({fips}, {year}): {e}")
+            return None
+
     async def _fetch_population_trend_acs(self, fips: Dict[str, str], years: List[int], geo_level: str) -> List[PopulationTrendPoint]:
         logger.info(f"Fetching population trend for geo='{geo_level}' for years {years}.")
         tasks = [self._fetch_acs_data(fips, year, geo_level, ["B01003_001E"]) for year in years]
@@ -288,7 +334,18 @@ class CensusService:
         logger.info(f"Successfully assembled trend for '{geo_level}' with {len(trend)} data points.")
         return sorted(trend, key=lambda x: x.year)
 
-    def _format_response_data(self, acs_data: Optional[Dict[str, Any]], trend: List[PopulationTrendPoint], projection: List[PopulationTrendPoint], benchmarks: BenchmarkData, walkability: Optional[WalkabilityScores], address: str, year: int, geo_level: str, aland: int, coordinates: Coordinates) -> PopulationDataResponse:
+    def _format_response_data(
+        self,
+        acs_data: Optional[Dict[str, Any]],
+        trend: List[PopulationTrendPoint],
+        projection: List[PopulationTrendPoint],
+        benchmarks: BenchmarkData,
+        walkability: Optional[WalkabilityScores],
+        migration: Optional[MigrationData],
+        natural_increase: Optional[NaturalIncreaseData],
+        address: str, year: int, geo_level: str,
+        aland: int, coordinates: Coordinates
+    ) -> PopulationDataResponse:
         logger.info("Starting final response formatting.")
         if not acs_data:
             logger.error("Cannot format response: main ACS data is missing.")
@@ -348,9 +405,9 @@ class CensusService:
 
         logger.success("Response formatting complete. Returning final data object.")
         return PopulationDataResponse(
-            search_address=address, data_year=year, geography_name=acs_data.get("NAME", "N/A"), geography_level=geo_level, coordinates=coordinates,
+            search_address=address, data_year=year, geography_name=acs_data.get("NAME", "N/A"), geography_level=geo_level, coordinates=coordinates, tract_area_sq_meters=aland,
             total_population=total_pop, median_age=acs_data.get("B01002_001E"),
-            growth=growth_metrics, migration=None, natural_increase=None,
+            growth=growth_metrics, migration=migration, natural_increase=natural_increase,
             population_density=population_density, age_distribution=age_distribution,
             demographics=demographics, walkability=walkability,
             population_trends=PopulationTrend(trend=trend, projection=projection, benchmark=benchmarks)

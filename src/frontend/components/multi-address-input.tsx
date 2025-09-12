@@ -1,6 +1,7 @@
 "use client";
 
 import { useForm } from "react-hook-form";
+import { XIcon } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
@@ -13,17 +14,8 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@components/ui/card";
-import { ToggleGroup, ToggleGroupItem } from "@components/ui/toggle-group";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@components/ui/select";
-import { Label } from "@components/ui/label";
 import { Separator } from "@components/ui/separator";
-import type { GeographyLevel } from "@lib/types";
+import type { AddressEntry } from "@lib/types";
 
 const addAddressSchema = z.object({
 	address: z.string().min(10, { message: "Please enter a valid address." }),
@@ -32,18 +24,14 @@ export type AddAddressSchema = z.infer<typeof addAddressSchema>;
 
 interface MultiAddressInputProps {
 	onAddAddress: (data: AddAddressSchema) => void;
-	geography: GeographyLevel;
-	onGeographyChange: (geo: GeographyLevel) => void;
-	timePeriod: number;
-	onTimePeriodChange: (tp: number) => void;
+	addresses: AddressEntry[];
+	onRemoveAddress: (id: string) => void;
 }
 
 export function MultiAddressInput({
 	onAddAddress,
-	geography,
-	onGeographyChange,
-	timePeriod,
-	onTimePeriodChange,
+	addresses,
+	onRemoveAddress,
 }: MultiAddressInputProps) {
 	const form = useForm<AddAddressSchema>({
 		resolver: zodResolver(addAddressSchema),
@@ -59,10 +47,9 @@ export function MultiAddressInput({
 		<div className="space-y-6">
 			<Card className="border-none shadow-none">
 				<CardHeader>
-					<CardTitle>Multi-Address Comparison</CardTitle>
+					<CardTitle>Add Address</CardTitle>
 					<CardDescription>
-						Add multiple addresses to compare their population
-						trends.
+						Enter an address to fetch its market data.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -88,50 +75,40 @@ export function MultiAddressInput({
 			<Separator />
 			<Card className="border-none shadow-none">
 				<CardHeader>
-					<CardTitle>Batch Settings</CardTitle>
+					<CardTitle>Address List</CardTitle>
 					<CardDescription>
-						These settings will apply to all addresses when you
-						fetch data.
+						Manage the addresses you've added.
 					</CardDescription>
 				</CardHeader>
-				<CardContent className="space-y-4">
-					<div className="flex items-center justify-between">
-						<Label htmlFor="geo-toggle">Geography Level</Label>
-						<ToggleGroup
-							id="geo-toggle"
-							type="single"
-							value={geography}
-							onValueChange={(v: GeographyLevel) =>
-								v && onGeographyChange(v)
-							}
-						>
-							<ToggleGroupItem value="tract">
-								Tract
-							</ToggleGroupItem>
-							<ToggleGroupItem value="county">
-								County
-							</ToggleGroupItem>
-						</ToggleGroup>
-					</div>
-					<div className="flex items-center justify-between">
-						<Label htmlFor="time-select">Time Period</Label>
-						<Select
-							value={String(timePeriod)}
-							onValueChange={(v) => onTimePeriodChange(Number(v))}
-						>
-							<SelectTrigger
-								id="time-select"
-								className="w-[150px]"
-							>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="1">YoY Growth</SelectItem>
-								<SelectItem value="3">3-Year Trend</SelectItem>
-								<SelectItem value="5">5-Year Trend</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
+				<CardContent>
+					{addresses.length > 0 ? (
+						<ul className="space-y-2">
+							{addresses.map((address) => (
+								<li
+									key={address.id}
+									className="flex items-center justify-between rounded-md border bg-muted/50 p-2"
+								>
+									<span className="truncate pr-2 text-sm">
+										{address.value}
+									</span>
+									<Button
+										variant="ghost"
+										size="icon"
+										className="h-6 w-6 shrink-0"
+										onClick={() =>
+											onRemoveAddress(address.id)
+										}
+									>
+										<XIcon className="h-4 w-4" />
+									</Button>
+								</li>
+							))}
+						</ul>
+					) : (
+						<p className="text-sm text-muted-foreground">
+							No addresses added yet.
+						</p>
+					)}
 				</CardContent>
 			</Card>
 		</div>

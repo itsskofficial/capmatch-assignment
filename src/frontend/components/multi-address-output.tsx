@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { XIcon, BarChart2, List } from "lucide-react";
+import { XIcon, List, Loader2 } from "lucide-react";
 
 import { Button } from "@components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@components/ui/card";
@@ -12,8 +12,8 @@ import {
 	DialogTitle,
 } from "@components/ui/dialog";
 import { PopulationMetricsCard } from "@components/population-metrics-card";
-import { ComparisonChart } from "@components/comparison-chart";
 import type { AddressEntry } from "@lib/types";
+import { cn } from "@lib/utils";
 
 function SummaryCard({
 	address,
@@ -27,38 +27,48 @@ function SummaryCard({
 	const renderStatus = () => {
 		switch (address.status) {
 			case "loading":
-				return <p className="text-sm text-blue-500">Loading...</p>;
+				return (
+					<div className="flex items-center text-sm text-blue-500">
+						<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+						Fetching data...
+					</div>
+				);
 			case "success":
 				return (
-					<p className="truncate text-sm text-green-600">
+					<p className="truncate text-sm text-green-600 dark:text-green-400">
 						{address.data?.geography_name}
 					</p>
 				);
 			case "error":
 				return (
-					<p className="truncate text-sm text-red-500">
-						Failed: {address.error}
+					<p className="truncate text-sm text-red-500 dark:text-red-400" title={address.error}>
+						Error: {address.error}
 					</p>
 				);
 			default:
-				return (
-					<p className="text-sm text-muted-foreground">
-						Ready to fetch
-					</p>
-				);
+				return null;
 		}
 	};
+
+	const statusBorder = {
+        loading: "border-l-blue-500",
+        success: "border-l-green-500",
+        error: "border-l-red-500",
+        idle: "border-l-transparent",
+    }[address.status];
+
 	return (
 		<Card
-			className={`relative transition-all hover:shadow-md ${
-				address.status === "success" ? "cursor-pointer" : ""
-			}`}
+			className={cn("group relative transition-all hover:shadow-md border-l-4",
+				statusBorder,
+				address.status === "success" && "cursor-pointer"
+			)}
 			onClick={address.status === "success" ? onSelect : undefined}
 		>
 			<Button
 				variant="ghost"
 				size="icon"
-				className="absolute top-1 right-1 h-6 w-6"
+				className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
 				onClick={(e) => {
 					e.stopPropagation();
 					onRemove();
@@ -67,10 +77,8 @@ function SummaryCard({
 				<XIcon className="h-4 w-4" />
 			</Button>
 			<CardContent className="p-4">
-				<p className="truncate pr-6 text-sm font-medium">
-					{address.value}
-				</p>
-				{renderStatus()}
+				<p className="truncate pr-6 font-medium">{address.value}</p>
+				<div className="mt-1">{renderStatus()}</div>
 			</CardContent>
 		</Card>
 	);
@@ -87,11 +95,6 @@ export function MultiAddressOutput({
 }: MultiAddressOutputProps) {
 	const [selectedAddress, setSelectedAddress] = useState<AddressEntry | null>(
 		null
-	);
-	const [isComparisonOpen, setIsComparisonOpen] = useState(false);
-
-	const successfulAddresses = addresses.filter(
-		(addr) => addr.status === "success" && addr.data
 	);
 
 	if (addresses.length === 0) {
@@ -116,15 +119,6 @@ export function MultiAddressOutput({
 			<Card className="flex h-full flex-col">
 				<CardHeader className="flex flex-row items-center justify-between">
 					<CardTitle>Address List ({addresses.length})</CardTitle>
-					<div className="flex items-center gap-2">
-						<Button
-							variant="outline"
-							onClick={() => setIsComparisonOpen(true)}
-							disabled={successfulAddresses.length < 2}
-						>
-							<BarChart2 className="mr-2 h-4 w-4" /> Compare
-						</Button>
-					</div>
 				</CardHeader>
 				<CardContent className="flex-grow overflow-auto p-4">
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
@@ -144,7 +138,7 @@ export function MultiAddressOutput({
 				open={!!selectedAddress}
 				onOpenChange={() => setSelectedAddress(null)}
 			>
-				<DialogContent className="max-w-3xl">
+				<DialogContent className="max-w-7xl">
 					<DialogHeader>
 						<DialogTitle>{selectedAddress?.value}</DialogTitle>
 					</DialogHeader>
@@ -155,16 +149,6 @@ export function MultiAddressOutput({
 							error={null}
 							data={selectedAddress?.data}
 						/>
-					</div>
-				</DialogContent>
-			</Dialog>
-			<Dialog open={isComparisonOpen} onOpenChange={setIsComparisonOpen}>
-				<DialogContent className="flex h-[80vh] max-w-5xl flex-col">
-					<DialogHeader>
-						<DialogTitle>Population Trend Comparison</DialogTitle>
-					</DialogHeader>
-					<div className="mt-4 flex-grow">
-						<ComparisonChart addresses={successfulAddresses} />
 					</div>
 				</DialogContent>
 			</Dialog>

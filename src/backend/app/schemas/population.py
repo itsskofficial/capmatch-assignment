@@ -83,6 +83,7 @@ class PopulationDataResponse(BaseModel):
     data_year: int
     geography_name: str
     geography_level: Literal['tract', 'county']
+    tract_area_sq_meters: int
     coordinates: Coordinates
 
     # Foundational Metrics

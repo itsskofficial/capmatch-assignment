@@ -41,7 +41,7 @@ async def get_market_data(
         process_time = (time.time() - start_time) * 1000
         logger.info(f"Successfully processed request for '{request.address}' in {process_time:.2f}ms.")
         return result
-    except HTTPException as e:
+    except HTTPException as e: #pylint: disable=try-except-raise
         process_time = (time.time() - start_time) * 1000
         logger.warning(
             f"HTTPException for '{request.address}': "
