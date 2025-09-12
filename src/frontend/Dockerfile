@@ -1,4 +1,4 @@
-# frontend/Dockerfile
+# src/frontend/Dockerfile
 # 1. Base Image
 FROM node:20-alpine AS base
 

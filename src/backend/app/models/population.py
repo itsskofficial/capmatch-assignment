@@ -1,4 +1,4 @@
-# backend/app/models/population.py
+# src/backend/app/models/population.py
 from sqlalchemy import Column, Integer, String, JSON, DateTime
 from sqlalchemy.sql import func
 from app.db.db_base_class import Base

@@ -1,4 +1,4 @@
-// frontend/app/api/[...slug]/route.ts
+// src/frontend/app/api/[...slug]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
 // This is the base URL of our FastAPI backend, running in another Docker container.
@@ -34,7 +34,7 @@ async function handler(req: NextRequest) {
 			body:
 				req.method !== "GET" && req.method !== "HEAD"
 					? await req.text()
-					: undefined,			
+					: undefined,
 		});
 
 		// 4. Return the response from the backend, including status code and body.

@@ -1,44 +1,61 @@
-# backend/app/api/v1/endpoints.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
+from loguru import logger
+import time
 
-from app.schemas.population import AddressRequest, PopulationGrowthResponse, ErrorResponse
+from app.schemas.population import MarketDataRequest, PopulationDataResponse, ErrorResponse
 from app.services.census_service import CensusService
 from app.db.session import get_db_session
 
 router = APIRouter()
-
-# Dependency Injection setup
 CensusServiceDep = Annotated[CensusService, Depends(CensusService)]
 DBSessionDep = Annotated[AsyncSession, Depends(get_db_session)]
 
-
 @router.post(
-    "/population-growth",
-    response_model=PopulationGrowthResponse,
-    summary="Get Population Growth by Address",
-    description="Accepts a full U.S. address and returns historical population data for the corresponding county. Results are cached.",
+    "/market-data",
+    response_model=PopulationDataResponse,
+    summary="Get Population Metrics by Address",
+    description="Accepts an address and returns key population metrics for the specified geography (tract or county).",
     responses={
         404: {"model": ErrorResponse, "description": "Address or data not found"},
         503: {"model": ErrorResponse, "description": "External service unavailable"},
     },
 )
-async def get_population_growth(
-    request: AddressRequest,
+async def get_market_data(
+    fastapi_request: Request, # Inject the request object to get client info
+    request: MarketDataRequest,
     service: CensusServiceDep,
-    db_session: DBSessionDep, # Inject the database session
+    db_session: DBSessionDep,
 ):
-    """
-    Endpoint to retrieve population growth data. It now uses a database cache
-    to speed up responses for previously requested addresses.
-    """
+    start_time = time.time()
+    client_host = fastapi_request.client.host if fastapi_request.client else "unknown"
+    logger.info(f"Received /market-data request from {client_host} for address: '{request.address}'")
+    logger.debug(f"Request details: {request.model_dump_json()}")
+    
     try:
-        # Pass the database session to the service layer
-        return await service.get_population_growth_for_address(request.address, db_session)
+        result = await service.get_market_data_for_address(
+            address=request.address,
+            geography_level=request.geography_level,
+            year=request.data_year,
+            time_period_years=request.time_period_years,
+            db=db_session
+        )
+        process_time = (time.time() - start_time) * 1000
+        logger.info(f"Successfully processed request for '{request.address}' in {process_time:.2f}ms.")
+        return result
     except HTTPException as e:
+        process_time = (time.time() - start_time) * 1000
+        logger.warning(
+            f"HTTPException for '{request.address}': "
+            f"Status={e.status_code}, Detail='{e.detail}'. Processed in {process_time:.2f}ms."
+        )
         raise e
-    except Exception as e:
-        # Log the error in a real application
-        # import logging; logging.exception("An unexpected error occurred")
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+    except Exception:
+        process_time = (time.time() - start_time) * 1000
+        # Use logger.exception to automatically include stack trace
+        logger.exception(
+            f"An unexpected error occurred for '{request.address}'. Processed in {process_time:.2f}ms."
+        )
+        # Re-raising as a generic 500 error to avoid leaking implementation details
+        raise HTTPException(status_code=500, detail="An unexpected internal error occurred.")

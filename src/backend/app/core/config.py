@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+from loguru import logger
 
 class Settings(BaseSettings):
     """
@@ -16,6 +17,7 @@ class Settings(BaseSettings):
 
     CENSUS_API_KEY: str
     GEOCODING_API_KEY: str | None = None
+    WALKSCORE_API_KEY: str | None = None # Add this line
 
     @property
     def DATABASE_URL(self) -> str:
@@ -32,6 +34,15 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     """Returns the settings instance, cached for efficiency."""
-    return Settings()
+    logger.info("Loading application settings...")
+    try:
+        settings = Settings()
+        logger.info("Application settings loaded successfully.")
+        # Be careful not to log sensitive data like passwords
+        logger.debug(f"Settings loaded: ENVIRONMENT={settings.ENVIRONMENT}, LOG_LEVEL={settings.LOG_LEVEL}")
+        return settings
+    except Exception as e:
+        logger.critical(f"FATAL: Failed to load application settings: {e}")
+        raise
 
 settings = get_settings()

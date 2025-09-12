@@ -1,4 +1,4 @@
-# backend/migrations/versions/a6a1b2c3d4e5_create_population_cache_table.py
+# src/backend/migrations/versions/a6a1b2c3d4e5_create_population_cache_table.py
 """Create population_cache table
 
 Revision ID: a6a1b2c3d4e5
