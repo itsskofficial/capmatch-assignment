@@ -4,6 +4,7 @@
 fastapi
 uvicorn[standard]  # ASGI server with high-performance extras
 python-dotenv      # For loading .env files in local development
+pydantic-settings  # For managing settings with Pydantic
 
 # --- Data & API Interaction ---
 httpx              # Modern async HTTP client for calling external APIs
@@ -14,6 +15,7 @@ census             # A convenient Python wrapper for the U.S. Census API
 sqlalchemy        # The ORM for interacting with our database
 psycopg2-binary   # PostgreSQL database adapter for Python
 alembic           # For database migrations (good practice)
+asyncpg           # Async PostgreSQL driver for async DB operations
 
 # --- Geocoding & Utilities ---
 geopy              # For any potential distance calculations or fallback geocoding

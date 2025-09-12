@@ -1,0 +1,61 @@
+// frontend/app/api/[...slug]/route.ts
+import { NextRequest, NextResponse } from "next/server";
+
+// This is the base URL of our FastAPI backend, running in another Docker container.
+const BACKEND_URL = process.env.BACKEND_API_URL;
+
+/**
+ * A generic API proxy handler that forwards requests from the Next.js frontend
+ * to the FastAPI backend. This avoids CORS issues and hides the backend URL
+ * from the client.
+ */
+async function handler(req: NextRequest) {
+	// 1. Construct the full URL to the FastAPI endpoint.
+	// req.nextUrl.pathname will be something like '/api/v1/population-growth'
+	const backendUrl = `${BACKEND_URL}${req.nextUrl.pathname}`;
+
+	// 2. Check if the backend URL is configured.
+	if (!BACKEND_URL) {
+		return NextResponse.json(
+			{ detail: "Backend service is not configured on the server." },
+			{ status: 503 }
+		);
+	}
+
+	try {
+		// 3. Forward the request to the FastAPI backend.
+		const apiResponse = await fetch(backendUrl, {
+			method: req.method,
+			headers: {
+				"Content-Type": "application/json",
+				// Forward any other necessary headers from the original request
+			},
+			// Include body only for relevant methods
+			body:
+				req.method !== "GET" && req.method !== "HEAD"
+					? await req.text()
+					: undefined,			
+		});
+
+		// 4. Return the response from the backend, including status code and body.
+		const responseBody = await apiResponse.json();
+		return NextResponse.json(responseBody, {
+			status: apiResponse.status,
+		});
+	} catch (error) {
+		console.error("API proxy error:", error);
+		return NextResponse.json(
+			{ detail: "An internal error occurred in the API proxy." },
+			{ status: 500 }
+		);
+	}
+}
+
+// Export the handler for all common HTTP methods.
+export {
+	handler as GET,
+	handler as POST,
+	handler as PUT,
+	handler as DELETE,
+	handler as PATCH,
+};
