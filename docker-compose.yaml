@@ -1,0 +1,69 @@
+# docker-compose.yml
+
+version: '3.8'
+
+services:
+  # 1. FastAPI Backend Service
+  backend:
+    build:
+      context: ./backend
+    restart: always
+    env_file:
+      - ./backend/.env
+    volumes:
+      # In development, this mounts your local code for live reloading.
+      # For a pure production build, you might remove this line.
+      - ./backend:/app
+    depends_on:
+      - db
+    networks:
+      - app-network
+    # This service is not exposed to the public internet.
+    # NGINX will communicate with it over the internal Docker network.
+
+  # 2. Next.js Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+    restart: always
+    volumes:
+      - ./frontend:/app
+      # Anonymous volumes to prevent host node_modules from overwriting container's
+      - /app/node_modules
+      - /app/.next
+    environment:
+      # This tells Next.js where to find the backend API.
+      # The value '/api' works perfectly with our NGINX reverse proxy setup.
+      - NEXT_PUBLIC_API_URL=/api
+    networks:
+      - app-network
+    # Expose port 3000 to the host machine so NGINX can connect to it.
+    ports:
+      - "3000:3000"
+
+  # 3. PostgreSQL Database Service
+  db:
+    image: postgres:15-alpine # Using alpine for a smaller image size
+    restart: always
+    volumes:
+      # This named volume persists database data across container restarts.
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      # These credentials must match the ones in the backend's .env file.
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=capmatch_cache
+    networks:
+      - app-network
+    # Expose port 5432 to the host for optional direct database access with a GUI tool.
+    ports:
+      - "5432:5432"
+
+# Named volume for persistent PostgreSQL data
+volumes:
+  postgres_data:
+
+# Custom network for secure service-to-service communication
+networks:
+  app-network:
+    driver: bridge
