@@ -6,7 +6,7 @@ from typing import Dict, List, Any, Optional
 
 import numpy as np
 from census import Census
-from httpx import AsyncClient
+from httpx import AsyncClient, HTTPStatusError
 from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,14 +17,15 @@ from app.core.config import settings
 from app.schemas.population import (
     PopulationDataResponse, AgeDistribution, Demographics, Coordinates,
     GrowthMetrics, MigrationData, NaturalIncreaseData, PopulationDensity,
-    PopulationTrend, PopulationTrendPoint, WalkabilityScores, BenchmarkData
+    PopulationTrend, PopulationTrendPoint, WalkabilityScores, BenchmarkData,
+    HousingMetrics
 )
 from app.models.population import PopulationCache
 
 # --- Constants ---
 # Use the latest available ACS 5-year data release year.
 LATEST_ACS_YEAR = 2022
-HISTORICAL_YEARS_COUNT = 10
+HISTORICAL_YEARS_COUNT = 5
 
 # --- ACS 5-Year Variables (For static demographics) ---
 ACS_VARS = {
@@ -33,6 +34,10 @@ ACS_VARS = {
     "B25003_001E": "total_occupied_units", "B25003_003E": "renter_occupied_units",
     "B15003_001E": "edu_total_pop_25_over", "B15003_022E": "edu_bachelors",
     "B15003_023E": "edu_masters", "B15003_024E": "edu_professional", "B15003_025E": "edu_doctorate",
+    # New variables
+    "B25010_001E": "avg_household_size",
+    "B25077_001E": "median_home_value",
+    "B25064_001E": "median_gross_rent",
     # Age Groups (Male)
     "B01001_003E": "m_under_5", "B01001_004E": "m_5_9", "B01001_005E": "m_10_14", "B01001_006E": "m_15_17", "B01001_007E": "m_18_19", "B01001_008E": "m_20", "B01001_009E": "m_21", "B01001_010E": "m_22_24", "B01001_011E": "m_25_29", "B01001_012E": "m_30_34", "B01001_013E": "m_35_39", "B01001_014E": "m_40_44", "B01001_015E": "m_45_49", "B01001_016E": "m_50_54", "B01001_017E": "m_55_59", "B01001_018E": "m_60_61", "B01001_019E": "m_62_64", "B01001_020E": "m_65_66", "B01001_021E": "m_67_69", "B01001_022E": "m_70_74", "B01001_023E": "m_75_79", "B01001_024E": "m_80_84", "B01001_025E": "m_85_over",
     # Age Groups (Female)
@@ -54,7 +59,7 @@ class CensusService:
     async def get_market_data_for_address(self, address: str, db: AsyncSession) -> PopulationDataResponse:
         logger.info(f"Starting market data retrieval for address: '{address}'")
         normalized_address = re.sub(r'\s+', ' ', address).strip().lower()
-        cache_key = f"{normalized_address}|tract|5_year_projected_v2"
+        cache_key = f"{normalized_address}|tract|5_year_projected_v3"
         logger.debug(f"Generated cache key: {cache_key}")
         
         stmt = select(PopulationCache).where(PopulationCache.address_key == cache_key)
@@ -74,28 +79,36 @@ class CensusService:
         fips, coords, aland = geo_info['fips'], geo_info['coords'], geo_info['aland']
         logger.info(f"Geocoding successful. FIPS: {fips}, ALAND: {aland}")
 
-        historical_years = list(range(LATEST_ACS_YEAR - HISTORICAL_YEARS_COUNT, LATEST_ACS_YEAR))
+        historical_years = list(range(LATEST_ACS_YEAR - HISTORICAL_YEARS_COUNT + 1, LATEST_ACS_YEAR + 1))
         logger.info(f"Requesting historical data for ACS 5-Year periods ending in: {historical_years}")
 
-        logger.info("Creating concurrent tasks for data fetching.")
+        # --- Optimization: Fetch population trend once, and reuse for main data ---
+        main_acs_vars = list(ACS_VARS.keys())
+        population_var = "B01003_001E"
+        if population_var in main_acs_vars:
+            main_acs_vars.remove(population_var)
+
         tasks = {
-            "main_acs_data": self._fetch_acs_data(fips, LATEST_ACS_YEAR -1, 'tract', list(ACS_VARS.keys())),
+            "main_acs_data": self._fetch_acs_data(fips, LATEST_ACS_YEAR, 'tract', main_acs_vars),
             "tract_trend": self._fetch_population_trend_acs(fips, historical_years, 'tract'),
             "county_trend": self._fetch_population_trend_acs(fips, historical_years, 'county'),
-            "state_trend": self._fetch_population_trend_acs(fips, historical_years, 'state'),
-            "national_trend": self._fetch_population_trend_acs({}, historical_years, 'us'),
+            "county_drivers": self._fetch_pep_county_components(fips, LATEST_ACS_YEAR - 1), # PEP data is usually a year behind ACS
             "walkability": self._get_walkability_scores(address, lat=coords['lat'], lon=coords['lon']),
-            "county_drivers": self._fetch_pep_county_components(fips, LATEST_ACS_YEAR - 1)
         }
 
         logger.info(f"Executing {len(tasks)} tasks concurrently...")
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
         task_results = dict(zip(tasks.keys(), results))
-        logger.info("All concurrent tasks finished.")
+
+        # The main ACS data is critical, so we handle its failure specifically.
+        main_acs_data = task_results.get("main_acs_data")
+        if isinstance(main_acs_data, Exception) or not main_acs_data:
+            raise HTTPException(status_code=503, detail=f"Failed to fetch critical ACS data: {main_acs_data}")
 
         for name, result in task_results.items():
             if isinstance(result, Exception):
                 logger.error(f"Task '{name}' failed with an exception: {result}")
+                # For non-critical tasks, we can proceed with a None value.
                 if name in ["main_acs_data", "tract_trend", "county_trend"]:
                     raise HTTPException(status_code=503, detail=f"Failed to fetch required data for {name}: {result}")
                 task_results[name] = None
@@ -103,8 +116,16 @@ class CensusService:
         tract_trend = task_results.get("tract_trend") or []
         county_trend = task_results.get("county_trend") or []
 
+        # Inject latest population from trend data back into main ACS data.
+        # This is safe because if tract_trend failed, the loop above would have raised an exception.
+        if main_acs_data:
+            latest_pop = next((p.population for p in reversed(tract_trend) if p.year == LATEST_ACS_YEAR), None)
+            main_acs_data[population_var] = latest_pop
+            if latest_pop is None:
+                logger.warning(f"Could not find population for {LATEST_ACS_YEAR} in trend data.")
+
         logger.info("Projecting tract population based on county trends.")
-        projections = self._project_tract_population(tract_trend, county_trend)
+        projections = self._project_tract_population(main_acs_data, county_trend)
         logger.info(f"Generated {len(projections)} years of projected data.")
 
         migration_data = None
@@ -123,17 +144,15 @@ class CensusService:
 
         logger.info("Formatting all retrieved data into the final response model.")
         response_data = self._format_response_data(
-            acs_data=task_results.get("main_acs_data"),
+            acs_data=main_acs_data,
             trend=tract_trend,
             projection=projections,
             benchmarks=BenchmarkData(
                 county_trend=county_trend,
-                state_trend=task_results.get("state_trend") or [],
-                national_trend=task_results.get("national_trend") or [],
             ),
             walkability=task_results.get("walkability"),
             migration=migration_data, natural_increase=natural_increase_data,
-            address=address, year=LATEST_ACS_YEAR -1, geo_level='tract',
+            address=address, year=LATEST_ACS_YEAR, geo_level='tract',
             aland=aland, coordinates=Coordinates(lat=coords['lat'], lon=coords['lon']),
         )
         logger.info("Data formatting complete.")
@@ -181,7 +200,7 @@ class CensusService:
         # Step 2: Get geographies (FIPS and ALAND) using coordinates from Census API
         logger.debug("Step 2: Fetching geographies (FIPS, ALAND) from Census coordinates endpoint.")
         geo_url = "https://geocoding.geo.census.gov/geocoder/geographies/coordinates"
-        vintage = f"ACS{LATEST_ACS_YEAR-1}_Current"
+        vintage = f"ACS{LATEST_ACS_YEAR}_Current"
         params2 = {"format": "json", "benchmark": "Public_AR_Current", "vintage": vintage, "x": lon, "y": lat}
         try:
             res2 = await self.http_client.get(geo_url, params=params2)
@@ -196,20 +215,23 @@ class CensusService:
                 raise HTTPException(status_code=404, detail="Could not determine geographic boundaries (tract/county).")
 
             fips = { "state": county["STATE"], "county": county["COUNTY"], "tract": tract["TRACT"] }
-            aland = tract.get("ALAND", 0)
+            aland = int(tract.get("ALAND", 0) or 0)
             if aland == 0:
                 logger.warning(f"Census Geocoder returned land area of 0 for tract {tract.get('GEOID')}")
 
-            return { "fips": fips, "coords": {"lat": lat, "lon": lon}, "aland": aland }
+            return {"fips": fips, "coords": {"lat": lat, "lon": lon}, "aland": aland}
         except Exception as e:
             logger.error(f"Census Geocoder (geographies) failed for coords ({lat}, {lon}): {e}")
             raise HTTPException(status_code=503, detail="Geocoding service failed at FIPS/ALAND lookup.")
 
-    def _project_tract_population(self, tract_trend: List[PopulationTrendPoint], county_trend: List[PopulationTrendPoint]) -> List[PopulationTrendPoint]:
+    def _project_tract_population(self, latest_tract_data: Optional[Dict[str, Any]], county_trend: List[PopulationTrendPoint]) -> List[PopulationTrendPoint]:
         logger.info("Starting tract population projection.")
-        if not tract_trend or len(county_trend) < 2:
+        if not latest_tract_data or not latest_tract_data.get("B01003_001E") or len(county_trend) < 2:
             logger.warning("Not enough historical data to perform projection. Returning empty list.")
             return []
+
+        base_population = latest_tract_data["B01003_001E"]
+        base_year = LATEST_ACS_YEAR
 
         logger.debug(f"Calculating county growth rates from {len(county_trend)} data points.")
         county_growth_rates = [
@@ -224,17 +246,15 @@ class CensusService:
         logger.debug(f"Average county growth factor: {avg_growth_factor:.4f}")
         
         projections = []
-        last_tract_point = tract_trend[-1]
-        current_pop = float(last_tract_point.population)
-        logger.debug(f"Projection base: Year {last_tract_point.year}, Population {current_pop}")
+        current_pop = float(base_population)
+        logger.debug(f"Projection base: Year {base_year}, Population {current_pop}")
         
-        current_year = datetime.datetime.now().year
-        projection_years = list(range(LATEST_ACS_YEAR, current_year + 1))
+        projection_years = list(range(LATEST_ACS_YEAR + 1, LATEST_ACS_YEAR + 4))
         logger.debug(f"Projecting for years: {projection_years}")
 
         for year in projection_years:
             current_pop *= avg_growth_factor
-            projected_point = PopulationTrendPoint(year=year, population=int(round(current_pop)))
+            projected_point = PopulationTrendPoint(year=year, population=int(round(current_pop)), is_projection=True)
             projections.append(projected_point)
             logger.debug(f"  - Projected {year}: {projected_point.population}")
         
@@ -247,7 +267,7 @@ class CensusService:
             logger.warning("WALKSCORE_API_KEY not set. Skipping walkability fetch.")
             return None
         
-        params = {"format": "json", "address": address, "lat": lat, "lon": lon, "wsapikey": settings.WALKSCORE_API_KEY}
+        params = {"format": "json", "address": address, "lat": lat, "lon": lon, "transit": 1, "wsapikey": settings.WALKSCORE_API_KEY}
         logger.debug(f"Requesting Walk Score with params: {params}")
         try:
             res = await self.http_client.get("https://api.walkscore.com/score", params=params)
@@ -260,7 +280,7 @@ class CensusService:
                     transit_score=data.get("transit", {}).get("score"),
                     transit_score_description=data.get("transit", {}).get("description"),
                 )
-                logger.success(f"Successfully fetched Walk Score: {scores.walk_score}")
+                logger.success(f"Successfully fetched Walk Score: {scores.walk_score}, Transit Score: {scores.transit_score}")
                 return scores
             else:
                 logger.warning(f"Walk Score API returned status {data.get('status')}. No scores available.")
@@ -300,7 +320,11 @@ class CensusService:
             processed_data = {'NAME': raw_data.get('NAME')}
             for key in variables:
                 value = raw_data.get(key)
-                processed_data[key] = int(value) if value is not None else None
+                # Handle Census API's negative value indicators for missing data
+                if value is not None and int(value) < 0:
+                    processed_data[key] = None
+                else:
+                    processed_data[key] = int(value) if value is not None else None
             return processed_data
         except Exception as e:
             logger.error(f"Census ACS API call failed for ({geo_level}, {year}): {e}")
@@ -356,45 +380,57 @@ class CensusService:
         logger.debug(f"Final total population (including projections): {total_pop}")
 
         logger.debug("Calculating growth metrics.")
-        growth_metrics = GrowthMetrics(period_years=len(trend) - 1 if trend else 0)
+        growth_metrics = GrowthMetrics(period_years=5)
         if len(trend) >= 2:
             end_pop, start_pop = trend[-1].population, trend[0].population
-            periods = len(trend) - 1
+            periods = trend[-1].year - trend[0].year
             if start_pop > 0 and periods > 0:
                 growth_metrics.cagr = round((((end_pop / start_pop) ** (1 / periods)) - 1) * 100, 2)
-            prev_pop = trend[-2].population
-            if prev_pop > 0:
-                growth_metrics.yoy_growth = round(((end_pop - prev_pop) / prev_pop) * 100, 2)
+
+            if len(trend) > 1:
+                prev_pop = trend[-2].population
+                if prev_pop > 0:
+                    growth_metrics.yoy_growth = round(((end_pop - prev_pop) / prev_pop) * 100, 2)
             growth_metrics.absolute_change = end_pop - start_pop
+
         logger.debug(f"Growth metrics: {growth_metrics.model_dump_json()}")
 
         logger.debug("Calculating population density.")
         aland_sq_miles = aland / 2589988.11 if aland > 0 else 0
-        current_density = (total_pop / aland_sq_miles) if aland_sq_miles > 0 else 0
+        latest_actual_pop = trend[-1].population if trend else (acs_data.get("B01003_001E") or 0)
+        current_density = (latest_actual_pop / aland_sq_miles) if aland_sq_miles > 0 else 0
         density_change = None
-        if trend and aland_sq_miles > 0:
+        if trend and aland_sq_miles > 0 and len(trend) >= 2:
             start_density = trend[0].population / aland_sq_miles
             last_historical_density = trend[-1].population / aland_sq_miles
             density_change = last_historical_density - start_density
         
         population_density = PopulationDensity(
-            people_per_sq_mile=round(current_density, 1), 
-            change_over_period=round(density_change, 1) if density_change is not None else None
+            people_per_sq_mile=current_density,
+            change_over_period=density_change
         )
         logger.debug(f"Population density: {population_density.model_dump_json()}")
 
-        logger.debug("Calculating demographic percentages.")
+        logger.debug("Calculating demographic and housing percentages.")
         bachelors_or_higher = sum(acs_data.get(k, 0) or 0 for k in ["B15003_022E", "B15003_023E", "B15003_024E", "B15003_025E"])
         total_pop_25_over = acs_data.get("B15003_001E", 0)
         percent_bachelors = round((bachelors_or_higher / total_pop_25_over) * 100, 1) if total_pop_25_over > 0 else None
-        renters, total_occupied = acs_data.get("B25003_003E", 0), acs_data.get("B25003_001E", 0)
-        percent_renter = round((renters / total_occupied) * 100, 1) if total_occupied > 0 else None
         
         demographics = Demographics(
             median_household_income=acs_data.get("B19013_001E"),
             percent_bachelors_or_higher=percent_bachelors,
-            percent_renter_occupied=percent_renter
+            avg_household_size=acs_data.get("B25010_001E")
         )
+
+        renters, total_occupied = acs_data.get("B25003_003E", 0), acs_data.get("B25003_001E", 0)
+        percent_renter = round((renters / total_occupied) * 100, 1) if total_occupied > 0 else None
+        
+        housing_metrics = HousingMetrics(
+            percent_renter_occupied=percent_renter,
+            median_home_value=acs_data.get("B25077_001E"),
+            median_gross_rent=acs_data.get("B25064_001E")
+        )
+
         age_distribution = AgeDistribution(
             under_18=sum(acs_data.get(k, 0) or 0 for k in ["B01001_003E", "B01001_004E", "B01001_005E", "B01001_006E", "B01001_027E", "B01001_028E", "B01001_029E", "B01001_030E"]),
             _18_to_34=sum(acs_data.get(k, 0) or 0 for k in ["B01001_007E", "B01001_008E", "B01001_009E", "B01001_010E", "B01001_011E", "B01001_012E", "B01001_031E", "B01001_032E", "B01001_033E", "B01001_034E", "B01001_035E", "B01001_036E"]),
@@ -409,6 +445,8 @@ class CensusService:
             total_population=total_pop, median_age=acs_data.get("B01002_001E"),
             growth=growth_metrics, migration=migration, natural_increase=natural_increase,
             population_density=population_density, age_distribution=age_distribution,
-            demographics=demographics, walkability=walkability,
+            demographics=demographics,
+            housing=housing_metrics,
+            walkability=walkability,
             population_trends=PopulationTrend(trend=trend, projection=projection, benchmark=benchmarks)
         )

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { XIcon, List, Loader2 } from "lucide-react";
+import { XIcon, List, Loader2, AlertTriangle } from "lucide-react";
 
 import { Button } from "@components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@components/ui/card";
+import { Skeleton } from "@components/ui/skeleton";
 import {
 	Dialog,
 	DialogContent,
@@ -14,15 +15,18 @@ import {
 import { PopulationMetricsCard } from "@components/population-metrics-card";
 import type { AddressEntry } from "@lib/types";
 import { cn } from "@lib/utils";
+import DynamicMap from "@components/dynamic-map";
 
 function SummaryCard({
 	address,
 	onRemove,
 	onSelect,
+	isAnyModalOpen,
 }: {
 	address: AddressEntry;
 	onRemove: () => void;
 	onSelect: () => void;
+	isAnyModalOpen: boolean;
 }) {
 	const renderStatus = () => {
 		switch (address.status) {
@@ -41,8 +45,11 @@ function SummaryCard({
 				);
 			case "error":
 				return (
-					<p className="truncate text-sm text-red-500 dark:text-red-400" title={address.error}>
-						Error: {address.error}
+					<p
+						className="truncate text-sm text-red-500 dark:text-red-400"
+						title={address.error}
+					>
+						Error: {address.error ?? "Unknown error"}
 					</p>
 				);
 			default:
@@ -50,17 +57,10 @@ function SummaryCard({
 		}
 	};
 
-	const statusBorder = {
-        loading: "border-l-blue-500",
-        success: "border-l-green-500",
-        error: "border-l-red-500",
-        idle: "border-l-transparent",
-    }[address.status];
-
 	return (
 		<Card
-			className={cn("group relative transition-all hover:shadow-md border-l-4",
-				statusBorder,
+			className={cn(
+				"group relative transition-all hover:shadow-md overflow-hidden p-0 gap-0",
 				address.status === "success" && "cursor-pointer"
 			)}
 			onClick={address.status === "success" ? onSelect : undefined}
@@ -68,7 +68,7 @@ function SummaryCard({
 			<Button
 				variant="ghost"
 				size="icon"
-				className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
+				className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 z-10 bg-background/50 hover:bg-background/80"
 				onClick={(e) => {
 					e.stopPropagation();
 					onRemove();
@@ -76,6 +76,27 @@ function SummaryCard({
 			>
 				<XIcon className="h-4 w-4" />
 			</Button>
+			<div className="h-32 w-full">
+				{address.status === "loading" && (
+					<Skeleton className="h-full w-full rounded-none" />
+				)}
+				{address.status === "error" && (
+					<div className="flex h-full w-full items-center justify-center bg-destructive/10">
+						<AlertTriangle className="h-8 w-8 text-destructive" />
+					</div>
+				)}
+				{address.status === "success" && address.data && (
+					isAnyModalOpen ? (
+						<Skeleton className="h-full w-full rounded-none" />
+					) : (
+						<DynamicMap
+							lat={address.data.coordinates.lat}
+							lon={address.data.coordinates.lon}
+							area={address.data.tract_area_sq_meters}
+						/>
+					)
+				)}
+			</div>
 			<CardContent className="p-4">
 				<p className="truncate pr-6 font-medium">{address.value}</p>
 				<div className="mt-1">{renderStatus()}</div>
@@ -118,7 +139,7 @@ export function MultiAddressOutput({
 		<div className="h-full w-full">
 			<Card className="flex h-full flex-col">
 				<CardHeader className="flex flex-row items-center justify-between">
-					<CardTitle>Address List ({addresses.length})</CardTitle>
+					<CardTitle>Address Data ({addresses.length})</CardTitle>
 				</CardHeader>
 				<CardContent className="flex-grow overflow-auto p-4">
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
@@ -128,6 +149,7 @@ export function MultiAddressOutput({
 								address={addr}
 								onRemove={() => onRemoveAddress(addr.id)}
 								onSelect={() => setSelectedAddress(addr)}
+								isAnyModalOpen={!!selectedAddress}
 							/>
 						))}
 					</div>
@@ -138,7 +160,7 @@ export function MultiAddressOutput({
 				open={!!selectedAddress}
 				onOpenChange={() => setSelectedAddress(null)}
 			>
-				<DialogContent className="max-w-7xl">
+				<DialogContent className="sm:max-w-7xl w-full">
 					<DialogHeader>
 						<DialogTitle>{selectedAddress?.value}</DialogTitle>
 					</DialogHeader>

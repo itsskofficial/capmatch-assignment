@@ -23,8 +23,6 @@ class WalkabilityScores(BaseModel):
 
 class BenchmarkData(BaseModel):
     county_trend: List[PopulationTrendPoint]
-    state_trend: List[PopulationTrendPoint]
-    national_trend: List[PopulationTrendPoint] # Added national benchmark
 
 class ErrorResponse(BaseModel):
     detail: str
@@ -72,9 +70,16 @@ class AgeDistribution(BaseModel):
         populate_by_name = True
 
 class Demographics(BaseModel):
+    """Socio-economic and household composition metrics."""
     median_household_income: Optional[int] = None
     percent_bachelors_or_higher: Optional[float] = None
+    avg_household_size: Optional[float] = None
+
+class HousingMetrics(BaseModel):
+    """Housing market and tenure metrics."""
     percent_renter_occupied: Optional[float] = None
+    median_home_value: Optional[int] = None
+    median_gross_rent: Optional[int] = None
 
 # --- Main Response Schema (Heavily Modified) ---
 class PopulationDataResponse(BaseModel):
@@ -90,24 +95,27 @@ class PopulationDataResponse(BaseModel):
     total_population: int
     median_age: Optional[float]
 
-    # Growth Metrics (Replaces cagr_5_year, yoy_growth_rate)
+    # Growth Metrics
     growth: GrowthMetrics
 
-    # Driver Metrics (New)
+    # Driver Metrics
     migration: Optional[MigrationData] = None
     natural_increase: Optional[NaturalIncreaseData] = None
 
-    # Effects / Implications (Density is now an object)
+    # Effects / Implications
     population_density: PopulationDensity
 
-    # Demographics (Unchanged structure, but grouped)
+    # Composition Metrics
     age_distribution: AgeDistribution
     demographics: Demographics
+
+    # Housing Metrics
+    housing: HousingMetrics
 
     # Ancillary Metrics
     walkability: Optional[WalkabilityScores] = None
 
-    # Trend Data (Now an object with projections)
+    # Trend Data
     population_trends: PopulationTrend
 
     class Config:

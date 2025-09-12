@@ -10,7 +10,7 @@ export type MarketDataRequest = z.infer<typeof marketDataRequestSchema>;
 const populationTrendPointSchema = z.object({
 	year: z.number(),
 	population: z.number(),
-	is_projection: z.boolean().optional().default(false)
+	is_projection: z.boolean().optional().default(false),
 });
 
 const ageDistributionSchema = z.object({
@@ -33,8 +33,6 @@ const walkabilityScoresSchema = z
 const benchmarkDataSchema = z
 	.object({
 		county_trend: z.array(populationTrendPointSchema),
-		state_trend: z.array(populationTrendPointSchema),
-		national_trend: z.array(populationTrendPointSchema),
 	})
 	.nullable()
 	.optional();
@@ -42,7 +40,13 @@ const benchmarkDataSchema = z
 const demographicsSchema = z.object({
 	median_household_income: z.number().nullable(),
 	percent_bachelors_or_higher: z.number().nullable(),
+	avg_household_size: z.number().nullable(),
+});
+
+const housingMetricsSchema = z.object({
 	percent_renter_occupied: z.number().nullable(),
+	median_home_value: z.number().nullable(),
+	median_gross_rent: z.number().nullable(),
 });
 
 const coordinatesSchema = z.object({
@@ -103,6 +107,7 @@ export const populationDataResponseSchema = z.object({
 	population_density: populationDensitySchema,
 	age_distribution: ageDistributionSchema,
 	demographics: demographicsSchema,
+	housing: housingMetricsSchema,
 	walkability: walkabilityScoresSchema,
 	population_trends: populationTrendSchema,
 });

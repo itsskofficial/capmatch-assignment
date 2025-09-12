@@ -11,6 +11,7 @@ import {
 	Bar,
 } from "recharts";
 import type { AddressEntry } from "@lib/types";
+import type { TooltipProps } from "recharts";
 
 const COLORS = [
 	"hsl(var(--chart-1))",
@@ -18,15 +19,6 @@ const COLORS = [
 	"hsl(var(--chart-3))",
 	"hsl(var(--chart-4))",
 	"hsl(var(--chart-5))",
-];
-const OLD_COLORS = [
-	"#8884d8",
-	"#82ca9d",
-	"#ffc658",
-	"#ff8042",
-	"#0088FE",
-	"#00C49F",
-	"#FFBB28",
 ];
 
 const formatPopulation = (value: number) => {
@@ -36,7 +28,7 @@ const formatPopulation = (value: number) => {
 };
 
 const transformDataForChart = (addresses: AddressEntry[]) => {
-	const yearMap = new Map<number, Record<string, number | string>>();
+	const yearMap = new Map<number, Record<string, number | number>>();
 
 	addresses.forEach((addr) => {
 		if (!addr.data || !addr.data.population_trends) return;
@@ -47,19 +39,15 @@ const transformDataForChart = (addresses: AddressEntry[]) => {
 			...addr.data.population_trends.projection,
 		];
 
-		allPoints.forEach(
-			(point: { year: number; population: number }) => {
-				if (!yearMap.has(point.year)) {
-					yearMap.set(point.year, { year: point.year.toString() });
-				}
-				yearMap.get(point.year)![seriesKey] = point.population;
+		allPoints.forEach((point: { year: number; population: number }) => {
+			if (!yearMap.has(point.year)) {
+				yearMap.set(point.year, { year: point.year });
 			}
-		);
+			yearMap.get(point.year)![seriesKey] = point.population;
+		});
 	});
 
-	return Array.from(yearMap.values()).sort(
-		(a, b) => parseInt(a.year as string) - parseInt(b.year as string)
-	);
+	return Array.from(yearMap.values()).sort((a, b) => (a.year as number) - (b.year as number));
 };
 
 const transformDataForBarChart = (
@@ -86,6 +74,15 @@ const transformDataForBarChart = (
 					])
 				),
 			},
+			{
+				metric: "Avg. Household Size",
+				...Object.fromEntries(
+					addresses.map((addr) => [
+						addr.data!.geography_name,
+						addr.data!.demographics.avg_household_size,
+					])
+				),
+			},
 		];
 	}
 	if (metric === "housing") {
@@ -95,16 +92,25 @@ const transformDataForBarChart = (
 				...Object.fromEntries(
 					addresses.map((addr) => [
 						addr.data!.geography_name,
-						addr.data!.demographics.percent_renter_occupied,
+						addr.data!.housing.percent_renter_occupied,
 					])
 				),
 			},
 			{
-				metric: "Density (per sq mi)",
+				metric: "Median Home Value",
 				...Object.fromEntries(
 					addresses.map((addr) => [
 						addr.data!.geography_name,
-						addr.data!.population_density.people_per_sq_mile,
+						addr.data!.housing.median_home_value,
+					])
+				),
+			},
+			{
+				metric: "Median Gross Rent",
+				...Object.fromEntries(
+					addresses.map((addr) => [
+						addr.data!.geography_name,
+						addr.data!.housing.median_gross_rent,
 					])
 				),
 			},
@@ -113,13 +119,17 @@ const transformDataForBarChart = (
 	return [];
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
 	if (active && payload && payload.length) {
 		return (
 			<div className="rounded-lg border bg-background p-2 shadow-sm">
 				<p className="text-sm font-medium">{label}</p>
-				{payload.map((pld: any) => (
-					<div key={pld.dataKey} style={{ color: pld.color }} className="text-sm">
+				{payload.map((pld) => (
+					<div
+						key={pld.dataKey}
+						style={{ color: pld.color }}
+						className="text-sm"
+					>
 						{pld.dataKey}: {pld.value?.toLocaleString()}
 					</div>
 				))}
@@ -128,7 +138,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 	}
 	return null;
 };
-
 
 export function ComparisonChart({
 	addresses,
@@ -149,14 +158,38 @@ export function ComparisonChart({
 
 	if (metric === "population_trend") {
 		const chartData = transformDataForChart(addresses);
+		let allTicks: number[] | undefined = undefined;
+		if (chartData.length > 0) {
+			const allYearsOnChart = chartData.map((d) => d.year as number);
+			const minYear = Math.min(...allYearsOnChart);
+			const maxYear = Math.max(...allYearsOnChart);
+			if (isFinite(minYear) && isFinite(maxYear)) {
+				allTicks = Array.from(
+					{ length: maxYear - minYear + 1 },
+					(_, i) => minYear + i
+				);
+			}
+		}
+
 		return (
 			<ResponsiveContainer width="100%" height="100%">
 				<LineChart
 					data={chartData}
 					margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
 				>
-					<CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-					<XAxis dataKey="year" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+					<CartesianGrid
+						strokeDasharray="3 3"
+						stroke="hsl(var(--border))"
+					/>
+					<XAxis
+						dataKey="year"
+						stroke="hsl(var(--muted-foreground))"
+						type="number"
+						domain={["dataMin", "dataMax"]}
+						allowDecimals={false}
+						fontSize={12}
+						ticks={allTicks}
+					/>
 					<YAxis
 						tickFormatter={formatPopulation}
 						stroke="hsl(var(--muted-foreground))"
@@ -169,7 +202,8 @@ export function ComparisonChart({
 							key={key}
 							type="monotone"
 							dataKey={key}
-							stroke={COLORS[index % COLORS.length]}
+							connectNulls
+							stroke="black"
 							strokeWidth={2}
 							dot={{ r: 2 }}
 							activeDot={{ r: 6 }}
@@ -186,21 +220,31 @@ export function ComparisonChart({
 		<div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
 			{barChartData.map((data, idx) => (
 				<div key={idx} className="flex flex-col">
-					<h3 className="text-center font-semibold mb-2">{data.metric}</h3>
+					<h3 className="text-center font-semibold mb-2">
+						{data.metric}
+					</h3>
 					<div className="flex-grow">
 						<ResponsiveContainer width="100%" height="100%">
 							<BarChart
 								data={[data]}
 								layout="vertical"
-								margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+								margin={{
+									top: 5,
+									right: 20,
+									left: 10,
+									bottom: 5,
+								}}
 							>
-								<CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-								<XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-								<YAxis
-									type="category"
-									dataKey="metric"
-									hide
+								<CartesianGrid
+									strokeDasharray="3 3"
+									stroke="hsl(var(--border))"
 								/>
+								<XAxis
+									type="number"
+									stroke="hsl(var(--muted-foreground))"
+									fontSize={12}
+								/>
+								<YAxis type="category" dataKey="metric" hide />
 								<Tooltip content={<CustomTooltip />} />
 								<Legend />
 								{seriesKeys.map((key, index) => (
@@ -216,5 +260,5 @@ export function ComparisonChart({
 				</div>
 			))}
 		</div>
-	)
+	);
 }

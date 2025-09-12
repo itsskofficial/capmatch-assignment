@@ -25,7 +25,6 @@ import {
 	PieChart,
 	Pie,
 	Cell,
-	Label,
 } from "recharts";
 import {
 	AlertCircle,
@@ -39,9 +38,8 @@ import {
 	Footprints,
 	Train,
 	TrendingDown,
-	ArrowRight,
-	Minus,
-	Plus,
+	Users2,
+	Building,
 } from "lucide-react";
 import type { PopulationDataResponse } from "@lib/schemas";
 import { cn } from "@lib/utils";
@@ -147,6 +145,7 @@ export function PopulationMetricsCard({
 		population_trends,
 		migration,
 		natural_increase,
+		housing,
 	} = data;
 
 	const ageData = [
@@ -155,7 +154,7 @@ export function PopulationMetricsCard({
 		{ name: "35-64", value: data.age_distribution._35_to_64 },
 		{ name: "65+", value: data.age_distribution.over_65 },
 	];
-	const tenureValue = data.demographics.percent_renter_occupied;
+	const tenureValue = housing.percent_renter_occupied;
 	const tenureData =
 		tenureValue != null
 			? [
@@ -165,29 +164,39 @@ export function PopulationMetricsCard({
 			: [];
 	const TENURE_COLORS = ["hsl(var(--primary))", "hsl(var(--muted))"];
 
-	const trendData = population_trends.trend.map((p) => ({
-		year: p.year,
-		[data.geography_name]: p.population,
-		County:
-			population_trends.benchmark?.county_trend.find(
-				(b) => b.year === p.year
-			)?.population ?? null,
-		State:
-			population_trends.benchmark?.state_trend.find(
-				(b) => b.year === p.year
-			)?.population ?? null,
-	}));
+	const projectionKey = "Projection";
+	const chartDataMap = new Map();
 
-	const projectionDataForChart =
-		population_trends.trend.length > 0
-			? [
-					population_trends.trend[population_trends.trend.length - 1],
-					...population_trends.projection,
-			  ].map((p) => ({
-					year: p.year,
-					Projection: p.population,
-			  }))
-			: [];
+	population_trends.trend.forEach((p) => {
+		chartDataMap.set(p.year, { year: p.year, [data.geography_name]: p.population });
+	});
+
+	const projectionPoints = [
+		...(population_trends.trend.length > 0
+			? [population_trends.trend.slice(-1)[0]]
+			: []),
+		...population_trends.projection,
+	];
+
+	projectionPoints.forEach((p) => {
+		const entry = chartDataMap.get(p.year) || { year: p.year };
+		entry[projectionKey] = p.population;
+		chartDataMap.set(p.year, entry);
+	});
+
+	const trendData = Array.from(chartDataMap.values()).sort(
+		(a, b) => a.year - b.year
+	);
+
+	let allTicks: number[] | undefined = undefined;
+	if (trendData.length > 0) {
+		const allYearsOnChart = trendData.map((d) => d.year);
+		const minYear = Math.min(...allYearsOnChart);
+		const maxYear = Math.max(...allYearsOnChart);
+		if (isFinite(minYear) && isFinite(maxYear)) {
+			allTicks = Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i);
+		}
+	}
 
 	const growthMetric = growth.cagr;
 	const growthLabel = `${growth.period_years}-Yr CAGR`;
@@ -217,10 +226,9 @@ export function PopulationMetricsCard({
 				{ name: "Deaths", value: natural_increase.deaths },
 		  ]
 		: [];
-	const NATURAL_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-5))"];
 
 	return (
-		<Card className="w-full max-w-3xl">
+		<Card className="w-full">
 			<CardHeader>
 				<CardTitle>
 					Metrics for{" "}
@@ -232,12 +240,13 @@ export function PopulationMetricsCard({
 			</CardHeader>
 			<CardContent className="space-y-6">
 				<Tabs defaultValue="overview">
-					<TabsList className="grid w-full grid-cols-4">
+					<TabsList className="grid w-full grid-cols-5">
 						<TabsTrigger value="overview">Overview</TabsTrigger>
 						<TabsTrigger value="drivers">Drivers</TabsTrigger>
 						<TabsTrigger value="demographics">
 							Demographics
 						</TabsTrigger>
+						<TabsTrigger value="housing">Housing</TabsTrigger>
 						<TabsTrigger value="map">Map View</TabsTrigger>
 					</TabsList>
 
@@ -329,6 +338,7 @@ export function PopulationMetricsCard({
 												dataKey="year"
 												type="number"
 												domain={["dataMin", "dataMax"]}
+												ticks={allTicks}
 												allowDecimals={false}
 											/>
 											<YAxis
@@ -343,43 +353,22 @@ export function PopulationMetricsCard({
 											<Line
 												type="monotone"
 												dataKey={data.geography_name}
-												stroke="hsl(var(--primary))"
+												connectNulls
+												stroke="black"
 												strokeWidth={2}
 												dot={{ r: 2 }}
 												activeDot={{ r: 4 }}
 											/>
-											{projectionDataForChart.length >
-												1 && (
+											{projectionPoints.length > 1 && (
 												<Line
-													data={
-														projectionDataForChart
-													}
 													type="monotone"
-													dataKey="Projection"
-													name={`${data.geography_name} (Proj.)`}
-													stroke="hsl(var(--chart-2))"
+													dataKey={projectionKey}
+													connectNulls
+													stroke="red"
 													strokeWidth={2}
-													strokeDasharray="3 3"
+													strokeDasharray="5 5"
 													dot={{ r: 2 }}
 													activeDot={{ r: 4 }}
-												/>
-											)}
-											{trendData[0]?.County != null && (
-												<Line
-													type="monotone"
-													dataKey="County"
-													stroke="hsl(var(--secondary-foreground))"
-													strokeDasharray="5 5"
-													dot={false}
-												/>
-											)}
-											{trendData[0]?.State != null && (
-												<Line
-													type="monotone"
-													dataKey="State"
-													stroke="hsl(var(--muted-foreground))"
-													strokeDasharray="1 5"
-													dot={false}
 												/>
 											)}
 										</LineChart>
@@ -423,7 +412,18 @@ export function PopulationMetricsCard({
 												<Bar
 													dataKey="value"
 													radius={[4, 4, 0, 0]}
-												/>
+												>
+													{migrationData.map(
+														(entry, index) => (
+															<Cell
+																key={`cell-${index}`}
+																fill={
+																	entry.fill
+																}
+															/>
+														)
+													)}
+												</Bar>
 											</BarChart>
 										</ResponsiveContainer>
 									</div>
@@ -456,23 +456,13 @@ export function PopulationMetricsCard({
 														value: number
 													) => value.toLocaleString()}
 												/>
-												{naturalIncreaseData.map(
-													(entry, index) => (
-														<Bar
-															key={`bar-${index}`}
-															dataKey="value"
-															fill={
-																NATURAL_COLORS[
-																	index %
-																		NATURAL_COLORS.length
-																]
-															}
-															radius={[
-																4, 4, 0, 0,
-															]}
-														/>
-													)
-												)}
+												<Bar
+													dataKey="value"
+													radius={[4, 4, 0, 0]}
+												>
+													<Cell fill="hsl(var(--chart-1))" />
+													<Cell fill="hsl(var(--chart-5))" />
+												</Bar>
 											</BarChart>
 										</ResponsiveContainer>
 									</div>
@@ -510,127 +500,148 @@ export function PopulationMetricsCard({
 									unit="%"
 								/>
 								<StatItem
-									icon={Home}
-									label="Renter Occupied"
-									value={
-										data.demographics
-											.percent_renter_occupied
-									}
-									unit="%"
+									icon={Users2}
+									label="Avg. Household Size"
+									value={data.demographics.avg_household_size}
+									unit="people"
 								/>
 							</div>
-							<div className="grid md:grid-cols-2 gap-8 items-center">
-								<div>
-									<h3 className="text-md font-semibold mb-2">
-										Housing Tenure
-									</h3>
-									<div className="h-64 w-full">
-										{tenureData.length > 0 ? (
-											<ResponsiveContainer
-												width="100%"
-												height="100%"
-											>
-												<PieChart>
-													<Pie
-														data={tenureData}
-														dataKey="value"
-														nameKey="name"
-														cx="50%"
-														cy="50%"
-														outerRadius={80}
-														label
-													>
-														{tenureData.map(
-															(entry, index) => (
-																<Cell
-																	key={`cell-${index}`}
-																	fill={
-																		TENURE_COLORS[
-																			index %
-																				TENURE_COLORS.length
-																		]
-																	}
-																/>
-															)
-														)}
-													</Pie>
-													<Legend />
-													<Tooltip
-														formatter={(
-															value: number
-														) =>
-															`${value.toFixed(
-																1
-															)}%`
-														}
-													/>
-												</PieChart>
-											</ResponsiveContainer>
-										) : (
-											<div className="flex items-center justify-center h-full text-muted-foreground">
-												Data not available.
-											</div>
-										)}
-									</div>
+							<div>
+								<h3 className="text-md font-semibold mb-2">
+									Age Distribution
+								</h3>
+								<div className="h-64 w-full">
+									<ResponsiveContainer
+										width="100%"
+										height="100%"
+									>
+										<BarChart
+											data={ageData}
+											layout="vertical"
+											margin={{ left: 10 }}
+										>
+											<CartesianGrid
+												strokeDasharray="3 3"
+												horizontal={false}
+											/>
+											<XAxis
+												type="number"
+												tickFormatter={formatPopulation}
+											/>
+											<YAxis
+												type="category"
+												dataKey="name"
+												width={50}
+												tickLine={false}
+												axisLine={false}
+											/>
+											<Tooltip
+												cursor={{
+													fill: "hsl(var(--muted))",
+												}}
+												formatter={(value: number) =>
+													value.toLocaleString()
+												}
+											/>
+											<Bar
+												dataKey="value"
+												fill="hsl(var(--primary))"
+												radius={[0, 4, 4, 0]}
+											/>
+										</BarChart>
+									</ResponsiveContainer>
 								</div>
-								<div>
-									<h3 className="text-md font-semibold mb-2">
-										Age Distribution
-									</h3>
-									<div className="h-64 w-full">
+							</div>
+						</div>
+					</TabsContent>
+
+					<TabsContent value="housing" className="mt-6">
+						<div className="space-y-8">
+							<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+								<StatItem
+									icon={Home}
+									label="Renter Occupied"
+									value={housing.percent_renter_occupied}
+									unit="%"
+								/>
+								<StatItem
+									icon={Building}
+									label="Median Home Value"
+									value={
+										housing.median_home_value
+											? `$${housing.median_home_value.toLocaleString()}`
+											: "N/A"
+									}
+								/>
+								<StatItem
+									icon={DollarSign}
+									label="Median Gross Rent"
+									value={
+										housing.median_gross_rent
+											? `$${housing.median_gross_rent.toLocaleString()}`
+											: "N/A"
+									}
+								/>
+							</div>
+							<div>
+								<h3 className="text-md font-semibold mb-2">
+									Housing Tenure
+								</h3>
+								<div className="h-64 w-full">
+									{tenureData.length > 0 ? (
 										<ResponsiveContainer
 											width="100%"
 											height="100%"
 										>
-											<BarChart
-												data={ageData}
-												layout="vertical"
-												margin={{ left: 10 }}
-											>
-												<CartesianGrid
-													strokeDasharray="3 3"
-													horizontal={false}
-												/>
-												<XAxis
-													type="number"
-													tickFormatter={
-														formatPopulation
-													}
-												/>
-												<YAxis
-													type="category"
-													dataKey="name"
-													width={50}
-													tickLine={false}
-													axisLine={false}
-												/>
+											<PieChart>
+												<Pie
+													data={tenureData}
+													dataKey="value"
+													nameKey="name"
+													cx="50%"
+													cy="50%"
+													outerRadius={80}
+													label
+												>
+													{tenureData.map(
+														(entry, index) => (
+															<Cell
+																key={`cell-${index}`}
+																fill={
+																	TENURE_COLORS[
+																		index %
+																			TENURE_COLORS.length
+																	]
+																}
+															/>
+														)
+													)}
+												</Pie>
+												<Legend />
 												<Tooltip
-													cursor={{
-														fill: "hsl(var(--muted))",
-													}}
 													formatter={(
 														value: number
-													) => value.toLocaleString()}
+													) => `${value.toFixed(1)}%`}
 												/>
-												<Bar
-													dataKey="value"
-													fill="hsl(var(--primary))"
-													radius={[0, 4, 4, 0]}
-												/>
-											</BarChart>
+											</PieChart>
 										</ResponsiveContainer>
-									</div>
+									) : (
+										<div className="flex items-center justify-center h-full text-muted-foreground">
+											Data not available.
+										</div>
+									)}
 								</div>
 							</div>
 						</div>
 					</TabsContent>
 
 					<TabsContent value="map" className="mt-6">
-						<div className="h-96 w-full">
+						<div className="h-96 w-full rounded-lg overflow-hidden">
 							<DynamicMap
 								lat={data.coordinates.lat}
 								lon={data.coordinates.lon}
 								area={data.tract_area_sq_meters}
+								interactive
 							/>
 						</div>
 					</TabsContent>
