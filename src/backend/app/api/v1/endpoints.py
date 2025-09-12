@@ -16,7 +16,7 @@ DBSessionDep = Annotated[AsyncSession, Depends(get_db_session)]
     "/market-data",
     response_model=PopulationDataResponse,
     summary="Get Population Metrics by Address",
-    description="Accepts an address and returns key population metrics for the specified geography (tract or county).",
+    description="Accepts an address and returns key population metrics for the census tract.",
     responses={
         404: {"model": ErrorResponse, "description": "Address or data not found"},
         503: {"model": ErrorResponse, "description": "External service unavailable"},
@@ -36,9 +36,6 @@ async def get_market_data(
     try:
         result = await service.get_market_data_for_address(
             address=request.address,
-            geography_level=request.geography_level,
-            year=request.data_year,
-            time_period_years=request.time_period_years,
             db=db_session
         )
         process_time = (time.time() - start_time) * 1000

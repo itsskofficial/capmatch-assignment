@@ -1,39 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { v4 as uuidv4 } from "uuid";
-import { Users, List, BarChartHorizontal } from "lucide-react";
+import { Compass, BarChartHorizontal } from "lucide-react";
 
-import {
-	Sidebar,
-	SidebarProvider,
-	SidebarInset,
-	SidebarHeader,
-	SidebarContent,
-	SidebarMenu,
-	SidebarMenuItem,
-	SidebarMenuButton,
-	SidebarGroup,
-	SidebarGroupLabel,
-	SidebarGroupContent,
-} from "@components/ui/sidebar";
 import {
 	ResizablePanelGroup,
 	ResizablePanel,
 	ResizableHandle,
 } from "@components/ui/resizable";
 import { ScrollArea } from "@components/ui/scroll-area";
-
-import { SingleAddressInput } from "@components/single-address-input";
-import { SingleAddressOutput } from "@components/single-address-output";
+import { FloatingDock } from "@components/floating-dock";
 import {
 	MultiAddressInput,
 	type AddAddressSchema,
 } from "@components/multi-address-input";
 import { MultiAddressOutput } from "@components/multi-address-output";
+import { ComparisonChart } from "@components/comparison-chart";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@components/ui/card";
 
-import type { AddressEntry, GeographyLevel } from "@lib/types";
+import type { AddressEntry } from "@lib/types";
 import {
 	populationDataResponseSchema,
 	type MarketDataRequest,
@@ -45,9 +37,6 @@ async function fetchPopulationData(
 ): Promise<PopulationDataResponse> {
 	const body = {
 		address: requestData.address,
-		geography_level: requestData.geography,
-		data_year: requestData.year,
-		time_period_years: requestData.timePeriod,
 	};
 	const response = await fetch("/api/v1/market-data", {
 		method: "POST",
@@ -63,186 +52,120 @@ async function fetchPopulationData(
 }
 
 export default function HomePage() {
-	const [mode, setMode] = useState<"single" | "multi">("single");
+	type Mode = "explore" | "compare";
+	const [mode, setMode] = useState<Mode>("explore");
 
-	// --- Single Address Mode State & Logic ---
-	const singleAddressMutation = useMutation({
-		mutationFn: (data: MarketDataRequest) => fetchPopulationData(data),
-	});
-	const handleSingleSubmit = (data: MarketDataRequest) => {
-		singleAddressMutation.mutate(data);
-	};
-
-	// --- Multi Address Mode State & Logic ---
 	const [addresses, setAddresses] = useState<AddressEntry[]>([]);
-	const [isFetchingAll, setIsFetchingAll] = useState(false);
-	const [geography, setGeography] = useState<GeographyLevel>("tract");
-	const [timePeriod, setTimePeriod] = useState(5);
 
 	const addAddress = (data: AddAddressSchema) => {
+		const newAddress: AddressEntry = {
+			id: uuidv4(),
+			value: data.address,
+			status: "loading",
+		};
+
 		setAddresses((prev) => [
 			...prev,
-			{ id: uuidv4(), value: data.address, status: "idle" },
+			newAddress,
 		]);
+
+		const fetchAndSet = async () => {
+			try {
+				const fetchedData = await fetchPopulationData({ address: newAddress.value });
+				setAddresses((prev) =>
+					prev.map((a) =>
+						a.id === newAddress.id
+							? { ...a, status: "success", data: fetchedData }
+							: a
+					)
+				);
+			} catch (error: unknown) {
+				const errorMessage =
+					error instanceof Error
+						? error.message
+						: "An unknown error occurred";
+				setAddresses((prev) =>
+					prev.map((a) =>
+						a.id === newAddress.id
+							? { ...a, status: "error", error: errorMessage }
+							: a
+					)
+				);
+			}
+		};
+
+		fetchAndSet();
 	};
 
 	const removeAddress = (id: string) => {
 		setAddresses((prev) => prev.filter((addr) => addr.id !== id));
 	};
 
-	const handleFetchAll = async () => {
-		setIsFetchingAll(true);
-		setAddresses((prev) =>
-			prev.map((addr) =>
-				addr.status === "idle" ? { ...addr, status: "loading" } : addr
-			)
-		);
+	const dockItems = [
+		{ title: "explore" as Mode, icon: <Compass /> },
+		{ title: "compare" as Mode, icon: <BarChartHorizontal /> },
+	];
 
-		const fetchPromises = addresses
-			.filter((addr) => addr.status !== "success")
-			.map(async (addr) => {
-				try {
-					const data = await fetchPopulationData({
-						address: addr.value,
-						geography: geography,
-						year: 2022,
-						timePeriod: timePeriod,
-					});
-					setAddresses((prev) =>
-						prev.map((a) =>
-							a.id === addr.id
-								? { ...a, status: "success", data }
-								: a
-						)
-					);
-				} catch (error: unknown) {
-					const errorMessage =
-						error instanceof Error
-							? error.message
-							: "An unknown error occurred";
-					setAddresses((prev) =>
-						prev.map((a) =>
-							a.id === addr.id
-								? { ...a, status: "error", error: errorMessage }
-								: a
-						)
-					);
-				}
-			});
-
-		await Promise.all(fetchPromises);
-		setIsFetchingAll(false);
-	};
+	const successfulAddresses = addresses.filter(
+		(addr) => addr.status === "success" && addr.data
+	);
 
 	return (
-		<SidebarProvider>
-			<div className="flex min-h-screen min-w-screen">
-				<Sidebar>
-					<SidebarHeader>
-						<div className="flex items-center gap-2">
-							<BarChartHorizontal className="h-6 w-6" />
-							<h1 className="text-xl font-semibold tracking-tight">
-								CapMatch
-							</h1>
-						</div>
-					</SidebarHeader>
-					<SidebarContent>
-						<SidebarMenu>
-							<SidebarGroup>
-								<SidebarGroupLabel>
-									Analysis Modes
-								</SidebarGroupLabel>
-								<SidebarGroupContent>
-									<SidebarMenuItem>
-										<SidebarMenuButton
-											isActive={mode === "single"}
-											onClick={() => setMode("single")}
-											tooltip="Single Address Mode"
-										>
-											<Users />
-											<span>Single Address</span>
-										</SidebarMenuButton>
-									</SidebarMenuItem>
-									<SidebarMenuItem>
-										<SidebarMenuButton
-											isActive={mode === "multi"}
-											onClick={() => setMode("multi")}
-											tooltip="Multi-Address Mode"
-										>
-											<List />
-											<span>Multi-Address</span>
-										</SidebarMenuButton>
-									</SidebarMenuItem>
-								</SidebarGroupContent>
-							</SidebarGroup>
-						</SidebarMenu>
-					</SidebarContent>
-				</Sidebar>
-				<SidebarInset className="flex-1 w-full bg-muted/40">
-					<ResizablePanelGroup
-						direction="horizontal"
-						className="w-full"
-					>
-						<ResizablePanel defaultSize={65} minSize={40}>
-							<main className="h-full overflow-auto p-4 md:p-6 lg:p-8">
-								{mode === "single" ? (
-									<div className="flex h-full w-full items-start justify-center">
-										<SingleAddressOutput
-											isLoading={
-												singleAddressMutation.isPending
-											}
-											isError={
-												singleAddressMutation.isError
-											}
-											error={singleAddressMutation.error}
-											data={singleAddressMutation.data}
+		<div className="flex min-h-screen w-full bg-muted/40">
+			<FloatingDock
+				items={dockItems}
+				activeMode={mode}
+				onModeChange={(newMode) => setMode(newMode)}
+			/>
+
+			<div className="w-full pl-24">
+				<ResizablePanelGroup direction="horizontal" className="w-full">
+					<ResizablePanel defaultSize={65} minSize={40}>
+						<main className="h-screen overflow-auto p-4 md:p-6 lg:p-8">
+							{mode === "explore" && (
+								<MultiAddressOutput
+									addresses={addresses}
+									onRemoveAddress={removeAddress}
+								/>
+							)}
+							{mode === "compare" && (
+								<Card className="flex h-full flex-col">
+									<CardHeader>
+										<CardTitle>Comparison View</CardTitle>
+										<CardDescription>
+											Population trends for fetched
+											addresses. Add and fetch data for at
+											least two addresses to compare.
+										</CardDescription>
+									</CardHeader>
+									<CardContent className="flex-grow">
+										<ComparisonChart
+											addresses={successfulAddresses}
 										/>
-									</div>
-								) : (
-									<MultiAddressOutput
-										addresses={addresses}
-										isFetchingAll={isFetchingAll}
-										onRemoveAddress={removeAddress}
-										onFetchAll={handleFetchAll}
+									</CardContent>
+								</Card>
+							)}
+						</main>
+					</ResizablePanel>
+					<ResizableHandle withHandle />
+					<ResizablePanel
+						defaultSize={35}
+						minSize={25}
+						maxSize={40}
+						className="bg-background"
+					>
+						<aside className="h-screen">
+							<ScrollArea className="h-full">
+								<div className="p-4 md:p-6 lg:p-8">
+									<MultiAddressInput
+										onAddAddress={addAddress}
 									/>
-								)}
-							</main>
-						</ResizablePanel>
-						<ResizableHandle withHandle />
-						<ResizablePanel
-							defaultSize={35}
-							minSize={25}
-							maxSize={40}
-							className="bg-background"
-						>
-							<aside className="h-full">
-								<ScrollArea className="h-full">
-									<div className="p-4 md:p-6 lg:p-8">
-										{mode === "single" ? (
-											<SingleAddressInput
-												onSubmit={handleSingleSubmit}
-												isSubmitting={
-													singleAddressMutation.isPending
-												}
-											/>
-										) : (
-											<MultiAddressInput
-												onAddAddress={addAddress}
-												geography={geography}
-												onGeographyChange={setGeography}
-												timePeriod={timePeriod}
-												onTimePeriodChange={
-													setTimePeriod
-												}
-											/>
-										)}
-									</div>
-								</ScrollArea>
-							</aside>
-						</ResizablePanel>
-					</ResizablePanelGroup>
-				</SidebarInset>
+								</div>
+							</ScrollArea>
+						</aside>
+					</ResizablePanel>
+				</ResizablePanelGroup>
 			</div>
-		</SidebarProvider>
+		</div>
 	);
 }

@@ -3,9 +3,6 @@ import { z } from "zod";
 // Schema for the form validation
 export const marketDataRequestSchema = z.object({
 	address: z.string().min(10, { message: "Please enter a valid address." }),
-	geography: z.enum(["tract", "county"]),
-	year: z.number().default(2022),
-	timePeriod: z.coerce.number().default(5),
 });
 export type MarketDataRequest = z.infer<typeof marketDataRequestSchema>;
 
@@ -21,15 +18,6 @@ const ageDistributionSchema = z.object({
 	_35_to_64: z.number(),
 	over_65: z.number(),
 });
-
-const componentsOfChangeSchema = z
-	.object({
-		births: z.number(),
-		deaths: z.number(),
-		net_migration: z.number(),
-	})
-	.optional()
-	.nullable();
 
 const walkabilityScoresSchema = z
 	.object({

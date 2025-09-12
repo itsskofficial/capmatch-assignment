@@ -168,7 +168,12 @@ export function PopulationMetricsCard({
 			: [];
 	const TENURE_COLORS = ["hsl(var(--primary))", "hsl(var(--muted))"];
 
-	const trendDataWithBenchmarks = population_trends.trend.map((point) => {
+	const allTrendPoints = [
+		...population_trends.trend,
+		...population_trends.projection,
+	];
+
+	const trendDataWithBenchmarks = allTrendPoints.map((point) => {
 		const countyPoint = population_trends.benchmark?.county_trend.find(
 			(p) => p.year === point.year
 		);
@@ -187,12 +192,19 @@ export function PopulationMetricsCard({
 		};
 	});
 
-	const growthMetric =
-		growth.period_years === 1 ? growth.yoy_growth : growth.cagr;
-	const growthLabel =
-		growth.period_years === 1
-			? "1-Yr Growth"
-			: `${growth.period_years}-Yr CAGR`;
+	const projectionDataForChart =
+		population_trends.trend.length > 0
+			? [
+					population_trends.trend[population_trends.trend.length - 1],
+					...population_trends.projection,
+			  ].map((p) => ({
+					year: p.year,
+					[data.geography_name]: p.population,
+			  }))
+			: [];
+
+	const growthMetric = growth.cagr;
+	const growthLabel = `${growth.period_years}-Yr CAGR`;
 	const growthColor =
 		growthMetric != null && growthMetric > 0
 			? "text-green-600"
@@ -229,8 +241,7 @@ export function PopulationMetricsCard({
 					<span className="text-primary">{data.search_address}</span>
 				</CardTitle>
 				<CardDescription>
-					{data.geography_name} ({data.geography_level},{" "}
-					{data.data_year})
+					{data.geography_name} (tract, {data.data_year} ACS Data)
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-6">
@@ -275,7 +286,10 @@ export function PopulationMetricsCard({
 								<StatItem
 									icon={MapPin}
 									label="Density"
-									value={population_density.people_per_sq_mile.toLocaleString()}
+									value={population_density.people_per_sq_mile.toLocaleString(
+										undefined,
+										{ maximumFractionDigits: 1 }
+									)}
 									unit={
 										<>
 											/mi²{" "}
@@ -350,20 +364,22 @@ export function PopulationMetricsCard({
 												dot={{ r: 2 }}
 												activeDot={{ r: 4 }}
 											/>
-											<Line
-												type="monotone"
-												dataKey={data.geography_name}
-												name="Projection"
-												data={population_trends.projection.map(
-													(p) => ({
-														year: p.year,
-														[data.geography_name]:
-															p.population,
-													})
-												)}
-												stroke="hsl(var(--primary))"
-												strokeDasharray="3 3"
-											/>
+											{projectionDataForChart.length >
+												1 && (
+												<Line
+													type="monotone"
+													dataKey={
+														data.geography_name
+													}
+													name="Projection"
+													data={
+														projectionDataForChart
+													}
+													stroke="hsl(var(--chart-2))"
+													strokeWidth={2}
+													strokeDasharray="3 3"
+												/>
+											)}
 											{trendDataWithBenchmarks[0]
 												?.County != null && (
 												<Line
@@ -371,6 +387,7 @@ export function PopulationMetricsCard({
 													dataKey="County"
 													stroke="hsl(var(--secondary-foreground))"
 													strokeDasharray="5 5"
+													dot={false}
 												/>
 											)}
 											{trendDataWithBenchmarks[0]
@@ -380,15 +397,7 @@ export function PopulationMetricsCard({
 													dataKey="State"
 													stroke="hsl(var(--muted-foreground))"
 													strokeDasharray="1 5"
-												/>
-											)}
-											{trendDataWithBenchmarks[0]
-												?.National != null && (
-												<Line
-													type="monotone"
-													dataKey="National"
-													stroke="hsl(var(--destructive))"
-													strokeDasharray="1 1"
+													dot={false}
 												/>
 											)}
 										</LineChart>
@@ -399,153 +408,11 @@ export function PopulationMetricsCard({
 					</TabsContent>
 
 					<TabsContent value="drivers" className="mt-6">
-						<div className="space-y-8">
-							<div className="grid md:grid-cols-2 gap-8 items-center">
-								<div>
-									<h3 className="text-md font-semibold mb-2">
-										Net Migration
-									</h3>
-									{migration ? (
-										<div className="h-64 w-full">
-											<div className="flex items-center justify-center gap-4 mb-4">
-												<StatItem
-													icon={ArrowRight}
-													label="Net Migration"
-													value={formatSigned(
-														migration.net_migration
-													)}
-												/>
-												<StatItem
-													icon={TrendingUp}
-													label="Rate"
-													value={`${migration.net_migration_rate}%`}
-												/>
-											</div>
-											<ResponsiveContainer
-												width="100%"
-												height="80%"
-											>
-												<BarChart
-													data={migrationData}
-													layout="vertical"
-													margin={{ left: 20 }}
-												>
-													<XAxis type="number" hide />
-													<YAxis
-														type="category"
-														dataKey="name"
-														hide
-													/>
-													<Tooltip
-														formatter={(
-															value: number
-														) =>
-															value.toLocaleString()
-														}
-														cursor={{
-															fill: "hsl(var(--muted))",
-														}}
-													/>
-													<Bar
-														dataKey="value"
-														radius={[4, 4, 4, 4]}
-													>
-														{migrationData.map(
-															(entry, index) => (
-																<Cell
-																	key={`cell-${index}`}
-																	fill={
-																		entry.fill
-																	}
-																/>
-															)
-														)}
-													</Bar>
-												</BarChart>
-											</ResponsiveContainer>
-										</div>
-									) : (
-										<p className="text-sm text-muted-foreground">
-											Migration data not available for
-											this geography.
-										</p>
-									)}
-								</div>
-								<div>
-									<h3 className="text-md font-semibold mb-2">
-										Natural Increase
-									</h3>
-									{natural_increase ? (
-										<div className="h-64 w-full">
-											<div className="flex items-center justify-center gap-4 mb-4">
-												<StatItem
-													icon={Plus}
-													label="Births"
-													value={natural_increase.births.toLocaleString()}
-												/>
-												<StatItem
-													icon={Minus}
-													label="Deaths"
-													value={natural_increase.deaths.toLocaleString()}
-												/>
-											</div>
-											<ResponsiveContainer
-												width="100%"
-												height="80%"
-											>
-												<PieChart>
-													<Pie
-														data={
-															naturalIncreaseData
-														}
-														dataKey="value"
-														nameKey="name"
-														cx="50%"
-														cy="50%"
-														innerRadius={40}
-														outerRadius={60}
-														paddingAngle={5}
-													>
-														{naturalIncreaseData.map(
-															(entry, index) => (
-																<Cell
-																	key={`cell-${index}`}
-																	fill={
-																		NATURAL_COLORS[
-																			index %
-																				NATURAL_COLORS.length
-																		]
-																	}
-																/>
-															)
-														)}
-														<Label
-															value={`${formatSigned(
-																natural_increase.natural_change
-															)} Total`}
-															position="center"
-															className="fill-foreground text-sm font-medium"
-														/>
-													</Pie>
-													<Tooltip
-														formatter={(
-															value: number
-														) =>
-															value.toLocaleString()
-														}
-													/>
-													<Legend />
-												</PieChart>
-											</ResponsiveContainer>
-										</div>
-									) : (
-										<p className="text-sm text-muted-foreground">
-											Natural increase data not available
-											for this geography.
-										</p>
-									)}
-								</div>
-							</div>
+						<div className="flex h-64 items-center justify-center">
+							<p className="text-muted-foreground">
+								Migration and Natural Increase data are not
+								available for tract-level analysis.
+							</p>
 						</div>
 					</TabsContent>
 

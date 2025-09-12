@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { XIcon, Loader2, BarChart2, Search, List } from "lucide-react";
+import { XIcon, BarChart2, List } from "lucide-react";
 
 import { Button } from "@components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@components/ui/card";
@@ -78,16 +78,12 @@ function SummaryCard({
 
 interface MultiAddressOutputProps {
 	addresses: AddressEntry[];
-	isFetchingAll: boolean;
 	onRemoveAddress: (id: string) => void;
-	onFetchAll: () => void;
 }
 
 export function MultiAddressOutput({
 	addresses,
-	isFetchingAll,
 	onRemoveAddress,
-	onFetchAll,
 }: MultiAddressOutputProps) {
 	const [selectedAddress, setSelectedAddress] = useState<AddressEntry | null>(
 		null
@@ -127,14 +123,6 @@ export function MultiAddressOutput({
 							disabled={successfulAddresses.length < 2}
 						>
 							<BarChart2 className="mr-2 h-4 w-4" /> Compare
-						</Button>
-						<Button onClick={onFetchAll} disabled={isFetchingAll}>
-							{isFetchingAll ? (
-								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-							) : (
-								<Search className="mr-2 h-4 w-4" />
-							)}{" "}
-							Fetch All
 						</Button>
 					</div>
 				</CardHeader>

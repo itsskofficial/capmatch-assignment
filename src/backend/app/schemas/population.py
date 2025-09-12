@@ -5,13 +5,11 @@ from typing import List, Optional, Literal
 class MarketDataRequest(BaseModel):
     """Schema for the incoming market data POST request."""
     address: str = Field(..., description="A full U.S. address.")
-    geography_level: Literal['tract', 'county'] = Field('tract', description="The geographic level for analysis.")
-    data_year: int = Field(2022, description="The most recent ACS 5-year data end year.")
-    time_period_years: int = Field(5, description="Number of years for trend data.")
 
 class PopulationTrendPoint(BaseModel):
     year: int
     population: int
+    is_projection: bool = False
 
 class Coordinates(BaseModel):
     lat: float
