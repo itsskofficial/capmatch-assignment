@@ -10,6 +10,7 @@ This is a full-stack application built for the CapMatch take-home assignment. It
 
 *   **Live Application:** **[SK CapMatch](https://sk-capmatch.existence.technology)**
 *   **Video Walkthrough:** **[Loom Video Link](https://www.loom.com/share/your-video-link)**
+*   **Architecture Diagram:** **[View Excalidraw Diagram](./diagram.excalidraw)**
 
 ---
 
