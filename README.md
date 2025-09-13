@@ -2,12 +2,11 @@
 
 This is a full-stack application built for the CapMatch take-home assignment. It dynamically generates a comprehensive "Population Context" market card for any U.S. address, sourcing data from credible public APIs in real-time.
 
-
-*(Replace this with a screenshot or GIF of your application)*
+![CapMatch Application Screenshot](./screenshot.png)
 
 ---
 
-## 🚀 Live Demo & Walkthrough
+## 🚀 Live Demo, Walkthrough & Architecture
 
 *   **Live Application:** **[SK CapMatch](https://sk-capmatch.existence.technology)**
 *   **Video Walkthrough:** **[Loom Video Link](https://www.loom.com/share/your-video-link)**
@@ -38,7 +37,7 @@ This is a full-stack application built for the CapMatch take-home assignment. It
 | **Backend**   | [FastAPI](https://fastapi.tiangolo.com/), [Python 3.11](https://www.python.org/), [SQLAlchemy 2.0](https://www.sqlalchemy.org/) (Async) |
 | **Database**  | [PostgreSQL](https://www.postgresql.org/) (for Caching), [Alembic](https://alembic.sqlalchemy.org/) (Migrations) |
 | **Data APIs** | U.S. Census Bureau (ACS, PEP, TIGERweb), Google Places, Walk Score®      |
-| **Deployment**| [Docker](https://www.docker.com/), Docker Compose                         |
+| **Deployment**| [Docker](https://www.docker.com/), Docker Compose, GitHub Actions                         |
 | **Auth**      | [Firebase Authentication](https://firebase.google.com/docs/auth)        |
 
 ---
@@ -102,6 +101,7 @@ Now, open `src/frontend/.env` and fill in the following values from your Firebas
 *   `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
 *   ...and other Firebase variables.
 *   `GOOGLE_PLACES_API_KEY`: A Google Cloud API key with the "Places API" enabled. This is used for the address autocomplete feature and is called from a server-side route, so it is not exposed to the client.
+*   `BACKEND_API_URL`: The URL of your FastAPI backend (e.g., `http://localhost:5000`). This is used by the frontend to proxy API requests to the backend server.
 
 ### 3. Build and Run with Docker
 
@@ -130,4 +130,4 @@ The application will be available at **[http://localhost:3000](http://localhost:
 *   **Add More Market Cards:** The architecture is extensible. New cards (Job Growth, Supply Pipeline) could be added by creating new services on the backend and corresponding components on the frontend.
 *   **Expanded Test Coverage:** Implement more comprehensive unit and integration tests for both the frontend and backend to ensure long-term stability.
 *   **User-Saved Lists:** Allow authenticated users to save, name, and manage lists of addresses for future analysis.
-*   **Streaming Responses:** For extremely slow data sources, the backend could be adapted to stream parts of the data to the frontend as they become available, improving perceived performance.
+* **Scalability:** Migrate to Kubernetes for container orchestration, automated scaling, and zero-downtime deployments. This would enable rolling updates, better resource management, and seamless integration with cloud services (e.g., managed PostgreSQL, secrets management). Alternatively, platforms like AWS ECS or Google Cloud Run could be used for simplified container hosting and scaling.
