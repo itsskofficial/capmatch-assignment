@@ -27,8 +27,9 @@ async function handler(req: NextRequest) {
 		const apiResponse = await fetch(backendUrl, {
 			method: req.method,
 			headers: {
+				// Forward the Authorization header from the client if it exists
+				...(req.headers.get("Authorization") && { Authorization: req.headers.get("Authorization")! }),
 				"Content-Type": "application/json",
-				// Forward any other necessary headers from the original request
 			},
 			// Include body only for relevant methods
 			body:

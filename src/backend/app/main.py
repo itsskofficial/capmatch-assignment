@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from loguru import logger
 
 from app.api.v1 import endpoints
+from app.core.firebase import initialize_firebase
 from app.core.logging_config import setup_logging
 
 # --- Logging Setup ---
@@ -20,6 +21,7 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event():
     logger.info("Application startup...")
+    initialize_firebase()
 
 @app.on_event("shutdown")
 async def shutdown_event():

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@components/providers";
+import { AuthProvider } from "@context/AuthContext";
 import { Toaster } from "@components/ui/sonner";
 
 // Import Leaflet CSS
@@ -23,8 +24,10 @@ export default function RootLayout({
 		<html lang="en" suppressHydrationWarning>
 			<body className={inter.className}>
 				<Providers>
-					{children}
-					<Toaster richColors />
+					<AuthProvider>
+						{children}
+						<Toaster richColors />
+					</AuthProvider>
 				</Providers>
 			</body>
 		</html>

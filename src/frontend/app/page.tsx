@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@context/AuthContext";
 import dynamic from "next/dynamic";
 import { useQueryClient, useQueries } from "@tanstack/react-query";
 import {
@@ -41,6 +43,7 @@ import {
 	useMarketData,
 	fetchMarketData,
 } from "@hooks/useMarketData";
+import { UserNav } from "@components/auth/user-nav";
 import type { AddressEntry } from "@lib/types";
 import type { PopulationDataResponse } from "@lib/schemas";
 import { ThemeToggle } from "@components/theme-toggle";
@@ -54,6 +57,16 @@ const ComparisonChart = dynamic(
 );
 
 export default function HomePage() {
+	const { user, loading } = useAuth();
+	const router = useRouter();
+
+	useEffect(() => {
+		// If loading is finished and there's no user, redirect to login
+		if (!loading && !user) {
+			router.push("/login");
+		}
+	}, [user, loading, router]);
+
 	const {
 		mode,
 		addresses,
@@ -133,9 +146,6 @@ export default function HomePage() {
 
 	return (
 		<div className="flex min-h-screen w-full bg-muted/40">
-			<div className="absolute top-4 right-4 z-50">
-				<ThemeToggle />
-			</div>
 			<aside className="fixed inset-y-0 left-0 z-10 hidden w-24 flex-col border-r bg-background sm:flex">
 				<div className="flex h-16 shrink-0 items-center justify-center border-b px-2">
 					{/* CapMatch Logo */}
@@ -159,6 +169,14 @@ export default function HomePage() {
 					activeMode={mode}
 					onModeChange={setMode}
 				/>
+				<div className="mt-auto flex flex-col items-center gap-4 p-4">
+					{user && (
+						<>
+							<ThemeToggle />
+							<UserNav />
+						</>
+					)}
+				</div>
 			</aside>
 
 			<div className="w-full sm:pl-24">

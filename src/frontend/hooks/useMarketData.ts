@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { MarketDataRequest, PopulationDataResponse } from "@lib/schemas";
 import { populationDataResponseSchema } from "@lib/schemas";
+import { auth } from "@lib/firebase";
 
 // --- Query Keys ---
 const marketDataKeys = {
@@ -15,12 +16,22 @@ const marketDataKeys = {
 };
 
 // --- Fetcher Functions ---
+const getAuthHeader = async (): Promise<Record<string, string>> => {
+  const user = auth.currentUser;
+  if (!user) return {};
+  const token = await user.getIdToken();
+  return { Authorization: `Bearer ${token}` };
+};
 
 // Fetches market data for a single address
 export const fetchMarketData = async (request: MarketDataRequest): Promise<PopulationDataResponse> => {
+  const authHeader = await getAuthHeader();
   const response = await fetch("/api/v1/market-data", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeader,
+    },
     body: JSON.stringify(request),
   });
   if (!response.ok) {
@@ -36,7 +47,11 @@ export const fetchMarketData = async (request: MarketDataRequest): Promise<Popul
 
 // Fetches the list of cached addresses from the server
 const fetchCachedAddresses = async (): Promise<string[]> => {
-  const response = await fetch("/api/v1/market-data/cache");
+  const authHeader = await getAuthHeader();
+  const response = await fetch("/api/v1/market-data/cache", {
+    method: "GET",
+    headers: authHeader,
+  });
   if (!response.ok) {
     throw new Error("Failed to fetch cached addresses.");
   }
@@ -45,9 +60,13 @@ const fetchCachedAddresses = async (): Promise<string[]> => {
 
 // Deletes an address from the server-side cache
 const deleteCachedAddress = async (address: string): Promise<void> => {
+  const authHeader = await getAuthHeader();
   const response = await fetch("/api/v1/market-data/cache", {
     method: "DELETE",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeader,
+    },
     body: JSON.stringify({ address }),
   });
   if (response.status !== 204) {
@@ -58,8 +77,12 @@ const deleteCachedAddress = async (address: string): Promise<void> => {
 
 // Fetches GeoJSON data for a tract
 const fetchTractGeoJSON = async (fips: { state: string; county: string; tract: string }) => {
+    const authHeader = await getAuthHeader();
     const params = new URLSearchParams(fips);
-    const response = await fetch(`/api/v1/tract-geojson?${params.toString()}`);
+    const response = await fetch(`/api/v1/tract-geojson?${params.toString()}`, {
+      method: "GET",
+      headers: authHeader,
+    });
     if (!response.ok) {
         throw new Error('Failed to fetch GeoJSON data');
     }

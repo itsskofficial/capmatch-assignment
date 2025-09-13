@@ -1,3 +1,4 @@
+import base64
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from loguru import logger
@@ -6,6 +7,9 @@ class Settings(BaseSettings):
     """
     Application settings loaded from environment variables.
     """
+    FIREBASE_SERVICE_ACCOUNT_BASE64: str | None = None
+    FIREBASE_PROJECT_ID: str | None = None
+
     ENVIRONMENT: str = "development"
     LOG_LEVEL: str = "INFO"
 
@@ -23,6 +27,13 @@ class Settings(BaseSettings):
     def DATABASE_URL(self) -> str:
         """Constructs the full SQLAlchemy async database URL."""
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+
+    @property
+    def FIREBASE_SERVICE_ACCOUNT_JSON(self) -> str | None:
+        """Decodes the base64 encoded service account."""
+        if not self.FIREBASE_SERVICE_ACCOUNT_BASE64:
+            return None
+        return base64.b64decode(self.FIREBASE_SERVICE_ACCOUNT_BASE64).decode("utf-8")
 
     model_config = SettingsConfigDict(
         env_file=".env",

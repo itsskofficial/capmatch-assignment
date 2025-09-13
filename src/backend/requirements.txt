@@ -11,5 +11,6 @@ alembic
 asyncpg
 geopy
 tenacity # For exponential backoff retries
+firebase-admin
 pytest # For testing
 pytest-asyncio # For async testing

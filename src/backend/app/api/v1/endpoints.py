@@ -1,5 +1,5 @@
 # src/backend/app/api/v1/endpoints.py
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, Query, Security
 from typing import Annotated, List, Any, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
@@ -8,6 +8,7 @@ import time
 from app.schemas.population import MarketDataRequest, PopulationDataResponse, ErrorResponse, CacheDeleteRequest
 from app.services.census_service import CensusService
 from app.db.session import get_db_session
+from app.api.deps import get_current_user
 
 # --- Dependency Injection Setup ---
 # By creating service instances here, FastAPI can manage their lifecycle.
@@ -54,6 +55,7 @@ async def get_market_data(
     request: MarketDataRequest,
     service: CensusServiceDep,
     db_session: DBSessionDep,
+    current_user: dict = Security(get_current_user),
 ):
     start_time = time.time()
     client_host = fastapi_request.client.host if fastapi_request.client else "unknown"
@@ -91,7 +93,7 @@ async def get_tract_geojson(
     state: str = Query(..., description="State FIPS code"),
     county: str = Query(..., description="County FIPS code"),
     tract: str = Query(..., description="Tract code"),
-    
+    current_user: dict = Security(get_current_user),
 ):
     """
     Provides the GeoJSON boundary for a specific census tract.
@@ -109,6 +111,7 @@ async def get_tract_geojson(
 async def get_all_cached_data(
     service: CensusServiceDep,
     db_session: DBSessionDep,
+    current_user: dict = Security(get_current_user),
 ):
     """Returns a list of all cached search addresses."""
     logger.info("Received request to list all cached addresses.")
@@ -125,6 +128,7 @@ async def delete_cached_data(
     request: CacheDeleteRequest,
     service: CensusServiceDep,
     db_session: DBSessionDep,
+    current_user: dict = Security(get_current_user),
 ):
     """Deletes a cache entry for a given address."""
     logger.info(f"Received request to delete cache for address: '{request.address}'")
