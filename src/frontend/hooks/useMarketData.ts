@@ -17,7 +17,7 @@ const marketDataKeys = {
 // --- Fetcher Functions ---
 
 // Fetches market data for a single address
-const fetchMarketData = async (request: MarketDataRequest): Promise<PopulationDataResponse> => {
+export const fetchMarketData = async (request: MarketDataRequest): Promise<PopulationDataResponse> => {
   const response = await fetch("/api/v1/market-data", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -25,7 +25,10 @@ const fetchMarketData = async (request: MarketDataRequest): Promise<PopulationDa
   });
   if (!response.ok) {
     const errorBody = await response.json();
-    throw new Error(errorBody.detail || "Failed to fetch market data.");
+    // Attach status for better error handling in components
+    const error = new Error(errorBody.detail || "Failed to fetch market data.") as Error & { status?: number };
+    error.status = response.status;
+    throw error;
   }
   const data = await response.json();
   return populationDataResponseSchema.parse(data);

@@ -294,11 +294,11 @@ export function PopulationMetricsCard({
 		  ]
 		: [];
 	const RACE_COLORS = [
-		"hsl(var(--chart-1))",
-		"hsl(var(--chart-2))",
-		"hsl(var(--chart-3))",
-		"hsl(var(--chart-4))",
-		"hsl(var(--chart-5))",
+		"var(--chart-1)",
+		"var(--chart-2)",
+		"var(--chart-3)",
+		"var(--chart-4)",
+		"var(--chart-5)",
 	];
 	const tenureValue = housing.percent_renter_occupied;
 	const tenureData =
@@ -317,7 +317,7 @@ export function PopulationMetricsCard({
 					{ name: "Female", value: sex_distribution.female },
 			  ]
 			: [];
-	const TENURE_COLORS = ["hsl(var(--primary))", "hsl(var(--muted))"];
+	const TENURE_COLORS = ["var(--chart-1)", "var(--chart-5)"];
 	const projectionKey = "Projection";
 	const chartDataMap = new Map();
 	population_trends.trend.forEach((p) =>
@@ -368,26 +368,22 @@ export function PopulationMetricsCard({
 				{
 					name: "Inflows",
 					value: migration.inflows,
-					fill: "hsl(var(--chart-1))",
+					fill: "var(--chart-1)",
 				},
 				{
 					name: "Outflows",
 					value: migration.outflows,
-					fill: "hsl(var(--chart-2))",
+					fill: "var(--chart-3)",
 				},
 		  ]
 		: [];
 	const domesticIntlData = migration
 		? [
-				{
-					name: "Domestic",
-					value: migration.domestic_migration,
-					fill: "hsl(var(--chart-3))",
-				},
+				{ name: "Domestic", value: migration.domestic_migration, fill: "var(--chart-1)" },
 				{
 					name: "International",
 					value: migration.international_migration,
-					fill: "hsl(var(--chart-4))",
+					fill: "var(--chart-2)",
 				},
 		  ]
 		: [];
@@ -541,7 +537,10 @@ export function PopulationMetricsCard({
 										height="100%"
 									>
 										<LineChart data={trendData}>
-											<CartesianGrid strokeDasharray="3 3" />
+											<CartesianGrid
+												strokeDasharray="3 3"
+												stroke="var(--border)"
+											/>
 											<XAxis
 												dataKey="year"
 												type="number"
@@ -562,7 +561,7 @@ export function PopulationMetricsCard({
 													type="monotone"
 													dataKey={data.geography_name}
 													connectNulls
-													stroke="black"
+													stroke="var(--foreground)"
 													strokeWidth={2}
 													dot={{ r: 2 }}
 													activeDot={{ r: 4 }}
@@ -572,7 +571,7 @@ export function PopulationMetricsCard({
 														type="monotone"
 														dataKey={projectionKey}
 														connectNulls
-														stroke="red"
+														stroke="var(--chart-3)"
 														strokeWidth={2}
 														strokeDasharray="5 5"
 														dot={{ r: 2 }}
@@ -665,6 +664,7 @@ export function PopulationMetricsCard({
 											<CartesianGrid
 												strokeDasharray="3 3"
 												horizontal={false}
+												stroke="var(--border)"
 											/>
 											<XAxis
 												type="number"
@@ -678,16 +678,14 @@ export function PopulationMetricsCard({
 												axisLine={false}
 											/>
 											<RechartsTooltip
-												cursor={{
-													fill: "hsl(var(--muted))",
-												}}
+												cursor={{ fill: "hsl(var(--accent) / 0.3)" }}
 												formatter={(value: number) =>
 													value.toLocaleString()
 												}
 											/>
 											<Bar
 												dataKey="value"
-												fill="hsl(var(--primary))"
+												fill="var(--chart-1)"
 												radius={[0, 4, 4, 0]}
 											/>
 										</BarChart>
@@ -732,8 +730,8 @@ export function PopulationMetricsCard({
 														).toFixed(0)}%`
 													}
 												>
-													<Cell fill="hsl(var(--chart-2))" />
-													<Cell fill="hsl(var(--chart-4))" />
+													<Cell fill="var(--chart-1)" />
+													<Cell fill="var(--chart-3)" />
 												</Pie>
 												<Legend />
 												<RechartsTooltip
@@ -764,8 +762,8 @@ export function PopulationMetricsCard({
 										<ResponsiveContainer width="100%" height="100%">
 											<PieChart>
 												<Pie data={householdData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-													<Cell fill="hsl(var(--chart-1))" />
-													<Cell fill="hsl(var(--chart-3))" />
+													<Cell fill="var(--chart-1)" />
+													<Cell fill="var(--chart-3)" />
 												</Pie>
 												<Legend />
 												<RechartsTooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
@@ -843,7 +841,10 @@ export function PopulationMetricsCard({
 													data={inflowOutflowData}
 													margin={{ left: 10 }}
 												>
-													<CartesianGrid strokeDasharray="3 3" />
+													<CartesianGrid
+														strokeDasharray="3 3"
+														stroke="var(--border)"
+													/>
 													<XAxis
 														dataKey="name"
 														tickLine={false}
@@ -851,9 +852,7 @@ export function PopulationMetricsCard({
 													/>
 													<YAxis />
 													<RechartsTooltip
-														cursor={{
-															fill: "hsl(var(--muted))",
-														}}
+														cursor={{ fill: "hsl(var(--accent) / 0.3)" }}
 														formatter={(
 															value: number
 														) => value.toLocaleString()}
@@ -885,7 +884,10 @@ export function PopulationMetricsCard({
 													data={domesticIntlData}
 													margin={{ left: 10 }}
 												>
-													<CartesianGrid strokeDasharray="3 3" />
+													<CartesianGrid
+														strokeDasharray="3 3"
+														stroke="var(--border)"
+													/>
 													<XAxis
 														dataKey="name"
 														tickLine={false}
@@ -893,20 +895,25 @@ export function PopulationMetricsCard({
 													/>
 													<YAxis />
 													<RechartsTooltip
-														cursor={{
-															fill: "hsl(var(--muted))",
-														}}
+														cursor={{ fill: "hsl(var(--accent) / 0.3)" }}
 														formatter={(
 															value: number
 														) => value.toLocaleString()}
 													/>
 													<Bar
 														dataKey="value"
-														fill="hsl(var(--chart-3))"
 														radius={[4, 4, 0, 0]}
 													>
-														<Cell fill="hsl(var(--chart-3))" />
-														<Cell fill="hsl(var(--chart-4))" />
+														{domesticIntlData.map(
+															(entry, index) => (
+																<Cell
+																	key={`cell-${index}`}
+																	fill={
+																		entry.fill
+																	}
+																/>
+															)
+														)}
 													</Bar>
 												</BarChart>
 											</ResponsiveContainer>
@@ -942,7 +949,10 @@ export function PopulationMetricsCard({
 												data={naturalIncreaseData}
 												margin={{ left: 10 }}
 											>
-												<CartesianGrid strokeDasharray="3 3" />
+												<CartesianGrid
+													strokeDasharray="3 3"
+													stroke="var(--border)"
+												/>
 												<XAxis
 													dataKey="name"
 													tickLine={false}
@@ -950,9 +960,7 @@ export function PopulationMetricsCard({
 												/>
 												<YAxis />
 												<RechartsTooltip
-													cursor={{
-														fill: "hsl(var(--muted))",
-													}}
+													cursor={{ fill: "hsl(var(--accent) / 0.3)" }}
 													formatter={(
 														value: number
 													) => value.toLocaleString()}
@@ -961,8 +969,8 @@ export function PopulationMetricsCard({
 													dataKey="value"
 													radius={[4, 4, 0, 0]}
 												>
-													<Cell fill="hsl(var(--chart-1))" />
-													<Cell fill="hsl(var(--chart-5))" />
+													<Cell fill="var(--chart-1)" />
+													<Cell fill="var(--chart-3)" />
 												</Bar>
 											</BarChart>
 										</ResponsiveContainer>

@@ -16,7 +16,7 @@ import {
 } from "@components/ui/card";
 import { Separator } from "@components/ui/separator";
 import { ScrollArea } from "@components/ui/scroll-area";
-import type { AddressEntry } from "@lib/types";
+import type { AddressIdentifier } from "@stores/addressStore";
 
 const addAddressSchema = z.object({
 	address: z.string().min(10, { message: "Please enter a valid address." }),
@@ -25,7 +25,7 @@ export type AddAddressSchema = z.infer<typeof addAddressSchema>;
 
 interface MultiAddressInputProps {
 	onAddAddress: (data: AddAddressSchema) => void;
-	addresses: AddressEntry[];
+	addresses: AddressIdentifier[];
 	onRemoveAddress: (id: string) => void;
 	cachedAddresses: string[];
 	onRemoveFromCache: (address: string) => void;

@@ -14,11 +14,11 @@ import type { AddressEntry } from "@lib/types";
 import type { TooltipProps } from "recharts";
 
 const COLORS = [
-	"hsl(var(--chart-1))",
-	"hsl(var(--chart-2))",
-	"hsl(var(--chart-3))",
-	"hsl(var(--chart-4))",
-	"hsl(var(--chart-5))",
+	"var(--chart-1)",
+	"var(--chart-2)",
+	"var(--chart-3)",
+	"var(--chart-4)",
+	"var(--chart-5)",
 ];
 
 const formatPopulation = (value: number) => {
@@ -226,11 +226,11 @@ export function ComparisonChart({
 				>
 					<CartesianGrid
 						strokeDasharray="3 3"
-						stroke="hsl(var(--border))"
+						stroke="var(--border)"
 					/>
 					<XAxis
 						dataKey="year"
-						stroke="hsl(var(--muted-foreground))"
+						stroke="gray"
 						type="number"
 						domain={["dataMin", "dataMax"]}
 						allowDecimals={false}
@@ -239,7 +239,7 @@ export function ComparisonChart({
 					/>
 					<YAxis
 						tickFormatter={formatPopulation}
-						stroke="hsl(var(--muted-foreground))"
+						stroke="gray"
 						fontSize={12}
 					/>
 					<Tooltip content={<CustomTooltip />} />
@@ -250,7 +250,7 @@ export function ComparisonChart({
 							type="monotone"
 							dataKey={key}
 							connectNulls
-							stroke="black"
+							stroke={COLORS[index % COLORS.length]}
 							strokeWidth={2}
 							dot={{ r: 2 }}
 							activeDot={{ r: 6 }}
@@ -284,11 +284,11 @@ export function ComparisonChart({
 							>
 								<CartesianGrid
 									strokeDasharray="3 3"
-									stroke="hsl(var(--border))"
+									stroke="var(--border)"
 								/>
 								<XAxis
 									type="number"
-									stroke="hsl(var(--muted-foreground))"
+									stroke="gray"
 									fontSize={12}
 								/>
 								<YAxis type="category" dataKey="metric" hide />

@@ -42,9 +42,10 @@ import {
 	useCachedAddresses,
 	useDeleteCachedAddress,
 	useMarketData,
+	fetchMarketData,
 } from "@hooks/useMarketData";
 import type { AddressEntry } from "@lib/types";
-import { marketDataRequestSchema } from "@lib/schemas";
+import type { PopulationDataResponse } from "@lib/schemas";
 
 const ComparisonChart = dynamic(
 	() =>
@@ -103,8 +104,7 @@ export default function HomePage() {
 	const queries = useQueries({
 		queries: addresses.map((address) => ({
 			queryKey: ["marketData", "detail", address.value],
-			queryFn: () =>
-				marketDataRequestSchema.parse({ address: address.value }),
+			queryFn: () => fetchMarketData({ address: address.value }),
 			enabled: mode === "compare", // Only fetch for comparison chart if in compare mode
 			staleTime: 1000 * 60 * 5,
 		})),
@@ -117,7 +117,7 @@ export default function HomePage() {
 				id: addresses[index].id,
 				value: addresses[index].value,
 				status: "success",
-				data: query.data as unknown, // Cast because we know it's successful
+				data: query.data as PopulationDataResponse, // Cast because we know it's successful
 			}));
 	}, [queries, addresses]);
 
