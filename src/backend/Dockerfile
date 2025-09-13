@@ -26,6 +26,11 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
+# Install system dependencies
+# - postgresql-client is needed for the pg_isready command in the entrypoint script.
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy installed packages from the builder stage and install them
 COPY --from=builder /wheels /wheels
 COPY --from=builder /app/requirements.txt .
