@@ -3,7 +3,7 @@
 import React from "react";
 import { List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@components/ui/card";
-import { MemoizedSummaryCard } from "@components/SummaryCard";
+import { MemoizedSummaryCard } from "@components/summary-card";
 import type { AddressIdentifier } from "@stores/addressStore";
 
 interface MultiAddressOutputProps {

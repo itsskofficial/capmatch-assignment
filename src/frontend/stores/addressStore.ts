@@ -14,17 +14,20 @@ export interface AddressIdentifier {
 interface AppState {
 	mode: Mode;
 	addresses: AddressIdentifier[];
+	comparisonSelectionIds: Set<string>; // Use a Set for efficient add/delete/check
 	selectedAddress: AddressIdentifier | null; // Store the identifier, not the full data object
 
 	setMode: (mode: Mode) => void;
 	addAddress: (addressValue: string) => void;
 	removeAddress: (id: string) => void;
 	selectAddress: (address: AddressIdentifier | null) => void;
+	toggleComparisonSelection: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
 	mode: "explore",
 	addresses: [],
+	comparisonSelectionIds: new Set(),
 	selectedAddress: null,
 
 	setMode: (mode) => set({ mode }),
@@ -56,12 +59,38 @@ export const useAppStore = create<AppState>((set, get) => ({
 	},
 
 	removeAddress: (id: string) => {
-		set((state) => ({
-			addresses: state.addresses.filter((addr) => addr.id !== id),
-			// If the removed address was selected, deselect it.
-			selectedAddress:
-				state.selectedAddress?.id === id ? null : state.selectedAddress,
-		}));
+		set((state) => {
+			const newComparisonIds = new Set(state.comparisonSelectionIds);
+			newComparisonIds.delete(id);
+			return {
+				addresses: state.addresses.filter((addr) => addr.id !== id),
+				comparisonSelectionIds: newComparisonIds,
+				selectedAddress:
+					state.selectedAddress?.id === id
+						? null
+						: state.selectedAddress,
+			};
+		});
 		toast.info("Address removed from the list.");
+	},
+
+	toggleComparisonSelection: (id: string) => {
+		set((state) => {
+			const newSelection = new Set(state.comparisonSelectionIds);
+			if (newSelection.has(id)) {
+				newSelection.delete(id);
+				toast.info("Address removed from comparison.");
+			} else {
+				if (newSelection.size >= 3) {
+					toast.error(
+						"You can only compare up to 3 addresses at a time."
+					);
+					return state; // Do not modify state
+				}
+				newSelection.add(id);
+				toast.success("Address added to comparison.");
+			}
+			return { comparisonSelectionIds: newSelection };
+		});
 	},
 }));

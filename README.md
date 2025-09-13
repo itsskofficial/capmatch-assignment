@@ -6,11 +6,12 @@ This is a full-stack application built for the CapMatch take-home assignment. It
 
 ---
 
-## 🚀 Live Demo, Walkthrough & Architecture
+## 🚀 Live Demo, Walkthrough, Architecture & Report
 
 *   **Live Application:** **[SK CapMatch](https://sk-capmatch.existence.technology)**
-*   **Video Walkthrough:** **[Loom Video Link](https://www.loom.com/share/your-video-link)**
+*   **Video Walkthrough:** **[Video Link](https://youtu.be/z_8_orDMt28)**
 *   **Architecture Diagram:** **[View Excalidraw Diagram](./diagram.excalidraw)**
+*   **Data Report:** **[Download PDF](./report.pdf)**
 
 ---
 
@@ -31,16 +32,18 @@ This is a full-stack application built for the CapMatch take-home assignment. It
 
 ## 🛠️ Tech Stack
 
-| Category      | Technology                                                              |
-|---------------|-------------------------------------------------------------------------|
-| **Frontend**  | [Next.js](https://nextjs.org/), [React](https://reactjs.org/), [TypeScript](https://www.typescriptlang.org/), [Tailwind CSS](https://tailwindcss.com/), [shadcn/ui](https://ui.shadcn.com/) |
-| **State Mgmt**| [React Query (TanStack)](https://tanstack.com/query/latest) (Server State), [Zustand](https://zustand-demo.pmnd.rs/) (UI State) |
-| **Backend**   | [FastAPI](https://fastapi.tiangolo.com/), [Python 3.11](https://www.python.org/), [SQLAlchemy 2.0](https://www.sqlalchemy.org/) (Async) |
-| **Database**  | [PostgreSQL](https://www.postgresql.org/) (for Caching), [Alembic](https://alembic.sqlalchemy.org/) (Migrations) |
-| **Data APIs** | U.S. Census Bureau (ACS, PEP, TIGERweb), Google Places, Walk Score®      |
-| **Deployment**| [Docker](https://www.docker.com/), Docker Compose, GitHub Actions                         |
-| **Auth**      | [Firebase Authentication](https://firebase.google.com/docs/auth)        |
-
+| Category            | Technology                                                                                                                                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend**        | [Next.js](https://nextjs.org/), [React](https://reactjs.org/), [TypeScript](https://www.typescriptlang.org/), [Tailwind CSS](https://tailwindcss.com/), [shadcn/ui](https://ui.shadcn.com/), [Framer Motion](https://www.framer.com/motion/), [Lucide React](https://lucide.dev/) |
+| **State Mgmt**      | [React Query (TanStack)](https://tanstack.com/query/latest) (Server State), [Zustand](https://zustand-demo.pmnd.rs/) (UI State)                                                                        |
+| **Charts & Maps**   | [Recharts](https://recharts.org/) (Charts), [React-Leaflet](https://react-leaflet.js.org/) (Maps)                                                                                                     |
+| **Backend**         | [FastAPI](https://fastapi.tiangolo.com/), [Python 3.11](https://www.python.org/), [SQLAlchemy 2.0](https://www.sqlalchemy.org/) (Async with `asyncpg`), [Uvicorn](https://www.uvicorn.org/)             |
+| **Core Backend Libs** | [HTTX](https://www.python-httpx.org/) (Async HTTP Client), [Tenacity](https://tenacity.readthedocs.io/) (Retries), [Loguru](https://loguru.readthedocs.io/) (Logging)                                |
+| **Database**        | [PostgreSQL](https://www.postgresql.org/) (for Caching), [Alembic](https://alembic.sqlalchemy.org/) (Migrations)                                                                                     |
+| **Data APIs**       | U.S. Census Bureau (ACS, PEP, TIGERweb), Google Places, [Nominatim](https://nominatim.org/) (OSM), Walk Score®                                                                                        |
+| **Deployment**      | [Docker](https://www.docker.com/), Docker Compose, GitHub Actions (CI/CD), Linux VM                                                                                                                  |
+| **Auth**            | [Firebase Authentication](https://firebase.google.com/docs/auth)                                                                                                                                    |
+| **Tooling & Testing** | [ESLint](https://eslint.org/), [Vitest](https://vitest.dev/), [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/), [Pytest](https://pytest.org/)   
 ---
 
 ## 🏗️ Architecture Overview

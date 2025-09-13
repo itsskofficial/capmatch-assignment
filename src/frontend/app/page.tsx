@@ -21,6 +21,7 @@ import {
 import { ScrollArea } from "@components/ui/scroll-area";
 import { FloatingDock } from "@components/floating-dock";
 import { MultiAddressInput } from "@components/multi-address-input";
+import { ComparisonPanel } from "@components/comparison-panel";
 import { MultiAddressOutput } from "@components/multi-address-output";
 import {
 	Card,
@@ -70,6 +71,7 @@ export default function HomePage() {
 	const {
 		mode,
 		addresses,
+		comparisonSelectionIds,
 		selectedAddress,
 		setMode,
 		addAddress,
@@ -79,6 +81,10 @@ export default function HomePage() {
 	const { data: cachedAddresses } = useCachedAddresses();
 	const deleteFromCacheMutation = useDeleteCachedAddress();
 	const queryClient = useQueryClient();
+
+	const comparisonAddresses = useMemo(() => {
+		return addresses.filter((addr) => comparisonSelectionIds.has(addr.id));
+	}, [addresses, comparisonSelectionIds]);
 
 	const handleAddAddress = useCallback(
 		(address: string) => {
@@ -110,10 +116,10 @@ export default function HomePage() {
 	}, [selectAddress]);
 
 	const queries = useQueries({
-		queries: addresses.map((address) => ({
+		queries: comparisonAddresses.map((address) => ({
 			queryKey: ["marketData", "detail", address.value],
 			queryFn: () => fetchMarketData({ address: address.value }),
-			enabled: mode === "compare", // Only fetch for comparison chart if in compare mode
+			enabled: mode === "compare",
 			staleTime: 1000 * 60 * 5,
 		})),
 	});
@@ -122,12 +128,12 @@ export default function HomePage() {
 		return queries
 			.filter((query) => query.isSuccess && query.data)
 			.map((query, index) => ({
-				id: addresses[index].id,
-				value: addresses[index].value,
+				id: comparisonAddresses[index].id,
+				value: comparisonAddresses[index].value,
 				status: "success",
 				data: query.data as PopulationDataResponse, // Cast because we know it's successful
 			}));
-	}, [queries, addresses]);
+	}, [queries, comparisonAddresses]);
 
 	const {
 		data: selectedAddressData,
@@ -200,9 +206,9 @@ export default function HomePage() {
 									<CardHeader>
 										<CardTitle>Comparison View</CardTitle>
 										<CardDescription>
-											Population trends for fetched
-											addresses. Add and fetch data for at
-											least two addresses to compare.
+											Population trends for selected
+											addresses. Select up to 3 addresses
+											from the panel to compare.
 										</CardDescription>
 									</CardHeader>
 									<CardContent className="flex-grow">
@@ -273,15 +279,23 @@ export default function HomePage() {
 						<aside className="h-full">
 							<ScrollArea className="h-full">
 								<div className="p-4 md:p-6 lg:p-8">
-									<MultiAddressInput
-										onAddAddress={handleAddAddress}
-										addresses={addresses}
-										onRemoveAddress={handleRemoveAddress}
-										cachedAddresses={cachedAddresses ?? []}
-										onRemoveFromCache={
-											deleteFromCacheMutation.mutate
-										}
-									/>
+									{mode === "explore" ? (
+										<MultiAddressInput
+											onAddAddress={handleAddAddress}
+											addresses={addresses}
+											onRemoveAddress={
+												handleRemoveAddress
+											}
+											cachedAddresses={
+												cachedAddresses ?? []
+											}
+											onRemoveFromCache={
+												deleteFromCacheMutation.mutate
+											}
+										/>
+									) : (
+										<ComparisonPanel />
+									)}
 								</div>
 							</ScrollArea>
 						</aside>

@@ -108,7 +108,8 @@ const transformDataForBarChart = (
 				...Object.fromEntries(
 					addresses.map((addr) => [
 						addr.data?.geography_name,
-						addr.data?.economic_context?.mean_commute_time_minutes?.value,
+						addr.data?.economic_context?.mean_commute_time_minutes
+							?.value,
 					])
 				),
 			},
@@ -200,7 +201,7 @@ export function ComparisonChart({
 	if (addresses.length < 1) {
 		return (
 			<div className="flex items-center justify-center h-full text-muted-foreground">
-				Add and fetch data for at least one address to see charts.
+				Select at least one address to see charts.
 			</div>
 		);
 	}
@@ -236,7 +237,8 @@ export function ComparisonChart({
 					/>
 					<XAxis
 						dataKey="year"
-						stroke="hsl(var(--muted-foreground))"
+						stroke="var(--muted-foreground)"
+						tick={{ fill: "var(--foreground)" }}
 						type="number"
 						domain={["dataMin", "dataMax"]}
 						allowDecimals={false}
@@ -245,7 +247,8 @@ export function ComparisonChart({
 					/>
 					<YAxis
 						tickFormatter={formatPopulation}
-						stroke="hsl(var(--muted-foreground))"
+						stroke="var(--muted-foreground)"
+						tick={{ fill: "var(--foreground)" }}
 						fontSize={12}
 					/>
 					<Tooltip content={<CustomTooltip />} />
@@ -294,7 +297,8 @@ export function ComparisonChart({
 								/>
 								<XAxis
 									type="number"
-									stroke="hsl(var(--muted-foreground))"
+									stroke="var(--muted-foreground)"
+									tick={{ fill: "var(--foreground)" }}
 									fontSize={12}
 								/>
 								<YAxis type="category" dataKey="metric" hide />

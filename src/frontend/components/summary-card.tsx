@@ -1,5 +1,10 @@
 import React, { useEffect } from "react";
-import { XIcon, Loader2, AlertTriangle } from "lucide-react";
+import {
+	XIcon,
+	Loader2,
+	AlertTriangle,
+	BarChartHorizontal,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@components/ui/button";
 import { Card, CardContent } from "@components/ui/card";
@@ -7,7 +12,7 @@ import { Skeleton } from "@components/ui/skeleton";
 import DynamicMap from "@components/dynamic-map";
 import { cn } from "@lib/utils";
 import { useMarketData } from "@hooks/useMarketData";
-import type { AddressIdentifier } from "@stores/addressStore";
+import { useAppStore, type AddressIdentifier } from "@stores/addressStore";
 
 interface SummaryCardProps {
 	addressIdentifier: AddressIdentifier;
@@ -25,6 +30,12 @@ export function SummaryCard({
 	const { data, isLoading, isError, error } = useMarketData(
 		addressIdentifier.value
 	);
+	const { toggleComparisonSelection, comparisonSelectionIds } = useAppStore();
+
+	const isAddressInComparison = comparisonSelectionIds.has(
+		addressIdentifier.id
+	);
+	const isComparisonFull = comparisonSelectionIds.size >= 3;
 
 	useEffect(() => {
 		const typedError = error as Error & { status?: number };
@@ -75,17 +86,38 @@ export function SummaryCard({
 			)}
 			onClick={data ? () => onSelect(addressIdentifier) : undefined}
 		>
-			<Button
-				variant="ghost"
-				size="icon"
-				className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 z-10 bg-background/50 hover:bg-background/80"
-				onClick={(e) => {
-					e.stopPropagation();
-					onRemove(addressIdentifier);
-				}}
-			>
-				<XIcon className="h-4 w-4" />
-			</Button>
+			<div className="absolute top-1 right-1 z-10 flex flex-col space-y-1 opacity-0 group-hover:opacity-100">
+				<Button
+					variant="ghost"
+					size="icon"
+					className="h-6 w-6 bg-background/50 hover:bg-background/80"
+					onClick={(e) => {
+						e.stopPropagation();
+						toggleComparisonSelection(addressIdentifier.id);
+					}}
+					disabled={isAddressInComparison || isComparisonFull}
+					title={
+						isAddressInComparison
+							? "Already in comparison"
+							: isComparisonFull
+							? "Comparison list is full"
+							: "Add to comparison"
+					}
+				>
+					<BarChartHorizontal className="h-4 w-4" />
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon"
+					className="h-6 w-6 bg-background/50 hover:bg-background/80"
+					onClick={(e) => {
+						e.stopPropagation();
+						onRemove(addressIdentifier);
+					}}
+				>
+					<XIcon className="h-4 w-4" />
+				</Button>
+			</div>
 			<div className="h-32 w-full">
 				{(isLoading || (isAnyModalOpen && data)) && (
 					<Skeleton className="h-full w-full rounded-none" />
