@@ -11,7 +11,7 @@ This is a full-stack application built for the CapMatch take-home assignment. It
 *   **Live Application:** **[SK CapMatch](https://sk-capmatch.existence.technology)**
 *   **Video Walkthrough:** **[Video Link](https://youtu.be/z_8_orDMt28)**
 *   **Architecture Diagram:** **[View Excalidraw Diagram](./diagram.excalidraw)**
-*   **Data Report:** **[Download PDF](./report.pdf)**
+*   **Data Report:** **[Download PDF](./Report.pdf)**
 
 ---
 
