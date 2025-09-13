@@ -1,15 +1,12 @@
-version: "3.8"
-
 services:
     # 1. FastAPI Backend Service
     backend:
         build:
-            context: ./backend
+            context: ./src/backend  # CORRECTED PATH
         restart: always
         env_file:
-            - ./backend/.env
-        volumes:
-            - ./backend:/app
+            - ./src/backend/.env   # CORRECTED PATH
+        # VOLUMES REMOVED FOR PRODUCTION
         depends_on:
             - db
         networks:
@@ -18,15 +15,11 @@ services:
     # 2. Next.js Frontend Service
     frontend:
         build:
-            context: ./frontend
+            context: ./src/frontend # CORRECTED PATH
         restart: always
-        volumes:
-            - ./frontend:/app
-            - /app/node_modules
-            - /app/.next
-        environment:
-            # This is the internal URL for the Next.js server to proxy requests to the backend.
-            - BACKEND_API_URL=http://backend:8000
+        env_file:
+            - ./src/frontend/.env  # CORRECTED PATH
+        # VOLUMES REMOVED FOR PRODUCTION
         networks:
             - app-network
         ports:
@@ -38,14 +31,10 @@ services:
         restart: always
         volumes:
             - postgres_data:/var/lib/postgresql/data/
-        environment:
-            - POSTGRES_USER=user
-            - POSTGRES_PASSWORD=password
-            - POSTGRES_DB=capmatch_cache
+        env_file:
+            - ./src/backend/.env
         networks:
             - app-network
-        ports:
-            - "5432:5432"
 
 volumes:
     postgres_data:

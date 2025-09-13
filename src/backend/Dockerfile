@@ -43,4 +43,4 @@ ENTRYPOINT ["/app/entrypoint.sh"]
 
 # The default command to run the application, passed to the entrypoint script.
 # Using 4 workers is a good starting point for a production-like environment.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "4"]
