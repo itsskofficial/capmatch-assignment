@@ -5,7 +5,6 @@ import datetime
 from typing import Dict, List, Any, Optional
 
 import numpy as np
-from census import Census
 from httpx import AsyncClient, HTTPStatusError
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -53,7 +52,6 @@ PEP_VARS = ("POP", "BIRTHS", "DEATHS", "NATURALINC", "NETMIG", "DOMESTICMIG", "I
 
 class CensusService:
     def __init__(self):
-        self.census_client = Census(settings.CENSUS_API_KEY)
         self.http_client = AsyncClient(timeout=15.0)
         self.census_api_semaphore = asyncio.Semaphore(10)
         logger.info("CensusService initialized.")
@@ -86,7 +84,7 @@ class CensusService:
 
         # --- Optimization: Fetch all tract data for the latest year in one call to reduce total requests ---
         tasks = {
-            "latest_year_tract_data": self._fetch_acs_data(fips, LATEST_ACS_YEAR, 'tract', list(ACS_VARS.keys())),
+            "latest_year_tract_data": self._fetch_large_acs_dataset(fips, LATEST_ACS_YEAR, 'tract', list(ACS_VARS.keys())),
             "historical_tract_trend": self._fetch_population_trend_acs(fips, historical_years[:-1], 'tract'),
             "county_trend": self._fetch_population_trend_acs(fips, historical_years, 'county'),
             "county_drivers": self._fetch_pep_county_components(fips),
@@ -256,6 +254,42 @@ class CensusService:
 
         return {"fips": fips, "coords": {"lat": lat, "lon": lon}, "aland": aland}
 
+    def _chunk_variables(self, variables: List[str], chunk_size: int = 49) -> List[List[str]]:
+        """Splits a list of variables into chunks of a given size to stay under the API limit."""
+        return [variables[i:i + chunk_size] for i in range(0, len(variables), chunk_size)]
+
+    async def _fetch_large_acs_dataset(self, fips: Dict[str, str], year: int, geo_level: str, variables: List[str]) -> Optional[Dict[str, Any]]:
+        """
+        Fetches a large set of ACS variables by splitting them into multiple API calls
+        to stay under the 50-variable limit.
+        """
+        logger.info(f"Fetching large ACS dataset ({len(variables)} vars) for geo='{geo_level}', year='{year}'.")
+        
+        variable_chunks = self._chunk_variables(variables)
+        logger.debug(f"Split variables into {len(variable_chunks)} chunks.")
+        
+        tasks = [
+            self._fetch_acs_data(fips, year, geo_level, chunk)
+            for chunk in variable_chunks
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        merged_data = {}
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"A chunk of the large ACS dataset fetch failed (chunk {i}): {result}")
+                # Fail if any part fails, as the data is critical.
+                return None
+            if result:
+                # The 'NAME' will be the same across all chunks, so we can just keep updating.
+                merged_data.update(result)
+                
+        if not merged_data or 'NAME' not in merged_data:
+            logger.warning("Large ACS dataset fetch resulted in no data or NAME after merging chunks.")
+            return None
+            
+        return merged_data
 
     def _project_tract_population(self, latest_tract_data: Optional[Dict[str, Any]], county_trend: List[PopulationTrendPoint]) -> List[PopulationTrendPoint]:
         logger.info("Starting tract population projection.")
@@ -323,6 +357,9 @@ class CensusService:
             return None
 
     async def _fetch_acs_data(self, fips: Dict[str, str], year: int, geo_level: str, variables: List[str]) -> Optional[Dict[str, Any]]:
+        """
+        Fetches ACS 5-Year data directly from the Census API using httpx.
+        """
         logger.info(f"Fetching ACS 5-Year data for geo='{geo_level}', year='{year}', fips='{fips}'.")
         geo_filter = {}
         if geo_level == 'tract':
@@ -336,31 +373,61 @@ class CensusService:
         else:
             logger.error(f"Unsupported geography level '{geo_level}' for ACS fetch.")
             return None
-        
-        logger.debug(f"Using Census API geo_filter: {geo_filter}")
+
+        base_url = f"https://api.census.gov/data/{year}/acs/acs5"
+        params = {
+            "get": ",".join(('NAME', *variables)),
+            **geo_filter,
+            "key": settings.CENSUS_API_KEY
+        }
+        logger.debug(f"Requesting Census API: {base_url} with params: {params}")
+
         try:
             async with self.census_api_semaphore:
-                loop = asyncio.get_running_loop()
-                logger.debug(f"Calling census_client.acs5.get for year {year}...")
-                data = await loop.run_in_executor(None, self.census_client.acs5.get, ('NAME', *variables), geo_filter, year)
-            
-            if not data: 
+                res = await self.http_client.get(base_url, params=params)
+
+            if res.status_code == 204:
+                logger.warning(f"No content (204) returned for {geo_level} {fips} in {year}")
+                return None
+
+            res.raise_for_status()
+            data = res.json()
+
+            if not data or len(data) < 2:
                 logger.warning(f"No ACS data returned for {geo_level} {fips} in {year}")
                 return None
             
-            logger.debug(f"Successfully received data from Census API for year {year}.")
-            raw_data = data[0]
+            headers, values = data[0], data[1]
+            raw_data = dict(zip(headers, values))
+
             processed_data = {'NAME': raw_data.get('NAME')}
             for key in variables:
-                value = raw_data.get(key)
-                # Handle Census API's negative value indicators for missing data
-                if value is not None and int(value) < 0:
+                value_str = raw_data.get(key)
+                if value_str is None:
                     processed_data[key] = None
-                else:
-                    processed_data[key] = int(value) if value is not None else None
+                    continue
+                try:
+                    value_float = float(value_str)
+                    # Handle Census API's negative value indicators for missing data
+                    if value_float < 0:
+                        processed_data[key] = None
+                    # Store as int if it's a whole number, otherwise as float
+                    elif value_float.is_integer():
+                        processed_data[key] = int(value_float)
+                    else:
+                        processed_data[key] = value_float
+                except (ValueError, TypeError):
+                    logger.warning(f"Could not parse numeric value '{value_str}' for key '{key}'. Setting to None.")
+                    processed_data[key] = None
+            
+            logger.debug(f"Successfully processed ACS data for year {year}.")
             return processed_data
-        except Exception as e:
-            logger.error(f"Census ACS API call failed for ({geo_level}, {year}): {e}")
+
+        except HTTPStatusError as e:
+            logger.error(f"Census ACS API call failed for ({geo_level}, {year}) with status {e.response.status_code}: {e.response.text}")
+            return None
+        except Exception:
+            logger.exception(f"An unexpected error occurred during ACS API call for ({geo_level}, {year}).")
             return None
 
     async def _fetch_migration_flows(self, fips: Dict[str, str]) -> Optional[Dict[str, Any]]:
@@ -542,7 +609,7 @@ class CensusService:
         logger.debug("Calculating demographic and housing percentages.")
         bachelors_or_higher = sum(acs_data.get(k, 0) or 0 for k in ["B15003_022E", "B15003_023E", "B15003_024E", "B15003_025E"])
         total_pop_25_over = acs_data.get("B15003_001E", 0)
-        percent_bachelors = round((bachelors_or_higher / total_pop_25_over) * 100, 1) if total_pop_25_over > 0 else None
+        percent_bachelors = round((bachelors_or_higher / total_pop_25_over) * 100, 1) if total_pop_25_over and total_pop_25_over > 0 else None
         
         demographics = Demographics(
             median_household_income=acs_data.get("B19013_001E"),
@@ -551,7 +618,7 @@ class CensusService:
         )
 
         renters, total_occupied = acs_data.get("B25003_003E", 0), acs_data.get("B25003_001E", 0)
-        percent_renter = round((renters / total_occupied) * 100, 1) if total_occupied > 0 else None
+        percent_renter = round((renters / total_occupied) * 100, 1) if total_occupied and total_occupied > 0 else None
         
         housing_metrics = HousingMetrics(
             percent_renter_occupied=percent_renter,
