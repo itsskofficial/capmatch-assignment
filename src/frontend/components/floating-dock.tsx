@@ -27,7 +27,7 @@ export const FloatingDock = ({
 	activeMode,
 	onModeChange,
 }: FloatingDockProps) => {
-	let mouseY = useMotionValue(Infinity);
+	const mouseY = useMotionValue(Infinity);
 
 	return (
 		<motion.div
@@ -64,24 +64,24 @@ function IconContainer({
 	isActive: boolean;
 	onClick: () => void;
 }) {
-	let ref = useRef<HTMLButtonElement>(null);
+	const ref = useRef<HTMLButtonElement>(null);
 
-	let distance = useTransform(mouseY, (val) => {
-		let bounds = ref.current?.getBoundingClientRect() ?? { y: 0, height: 0 };
+	const distance = useTransform(mouseY, (val) => {
+		const bounds = ref.current?.getBoundingClientRect() ?? { y: 0, height: 0 };
 		return val - bounds.y - bounds.height / 2;
 	});
 
 	// Animate size based on mouse proximity
-	let sizeTransform = useTransform(distance, [-100, 0, 100], [48, 64, 48]);
-	let size = useSpring(sizeTransform, {
+	const sizeTransform = useTransform(distance, [-100, 0, 100], [48, 64, 48]);
+	const size = useSpring(sizeTransform, {
 		mass: 0.1,
 		stiffness: 150,
 		damping: 12,
 	});
 
 	// Animate icon size
-	let iconSizeTransform = useTransform(distance, [-100, 0, 100], [24, 32, 24]);
-	let iconSize = useSpring(iconSizeTransform, {
+	const iconSizeTransform = useTransform(distance, [-100, 0, 100], [24, 32, 24]);
+	const iconSize = useSpring(iconSizeTransform, {
 		mass: 0.1,
 		stiffness: 150,
 		damping: 12,

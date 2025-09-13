@@ -27,6 +27,7 @@ import {
 	Pie,
 	Cell,
 	type PieLabelRenderProps,
+	Tooltip as RechartsTooltip,
 } from "recharts";
 import {
 	AlertCircle,
@@ -551,7 +552,7 @@ export function PopulationMetricsCard({
 											<YAxis
 												tickFormatter={formatPopulation}
 											/>
-											<Tooltip
+											<RechartsTooltip
 												formatter={(value: number) =>
 													value.toLocaleString()
 												}
@@ -676,7 +677,7 @@ export function PopulationMetricsCard({
 												tickLine={false}
 												axisLine={false}
 											/>
-											<Tooltip
+											<RechartsTooltip
 												cursor={{
 													fill: "hsl(var(--muted))",
 												}}
@@ -728,14 +729,14 @@ export function PopulationMetricsCard({
 														`${(
 															(props.percent ??
 																0) * 100
-														).toFixed(1)}%`
+														).toFixed(0)}%`
 													}
 												>
 													<Cell fill="hsl(var(--chart-2))" />
 													<Cell fill="hsl(var(--chart-4))" />
 												</Pie>
 												<Legend />
-												<Tooltip
+												<RechartsTooltip
 													formatter={(
 														value: number
 													) => value.toLocaleString()}
@@ -767,7 +768,7 @@ export function PopulationMetricsCard({
 													<Cell fill="hsl(var(--chart-3))" />
 												</Pie>
 												<Legend />
-												<Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+												<RechartsTooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
 											</PieChart>
 										</ResponsiveContainer>
 									</div>
@@ -796,7 +797,7 @@ export function PopulationMetricsCard({
 													))}
 												</Pie>
 												<Legend />
-												<Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+												<RechartsTooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
 											</PieChart>
 										</ResponsiveContainer>
 									</div>
@@ -849,7 +850,7 @@ export function PopulationMetricsCard({
 														axisLine={false}
 													/>
 													<YAxis />
-													<Tooltip
+													<RechartsTooltip
 														cursor={{
 															fill: "hsl(var(--muted))",
 														}}
@@ -891,7 +892,7 @@ export function PopulationMetricsCard({
 														axisLine={false}
 													/>
 													<YAxis />
-													<Tooltip
+													<RechartsTooltip
 														cursor={{
 															fill: "hsl(var(--muted))",
 														}}
@@ -948,7 +949,7 @@ export function PopulationMetricsCard({
 													axisLine={false}
 												/>
 												<YAxis />
-												<Tooltip
+												<RechartsTooltip
 													cursor={{
 														fill: "hsl(var(--muted))",
 													}}
@@ -1054,7 +1055,7 @@ export function PopulationMetricsCard({
 													)}
 												</Pie>
 												<Legend />
-												<Tooltip
+												<RechartsTooltip
 													formatter={(
 														value: number
 													) => `${value.toFixed(1)}%`}
