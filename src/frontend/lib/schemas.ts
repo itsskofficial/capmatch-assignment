@@ -20,6 +20,13 @@ const ageDistributionSchema = z.object({
 	over_65: z.number(),
 });
 
+const sexDistributionSchema = z.object({
+	male: z.number(),
+	female: z.number(),
+	percent_male: z.number().nullable(),
+	percent_female: z.number().nullable(),
+});
+
 const walkabilityScoresSchema = z
 	.object({
 		walk_score: z.number().nullable().optional(),
@@ -67,6 +74,9 @@ const migrationDataSchema = z
 		net_migration_rate: z.number(),
 		domestic_migration: z.number(),
 		international_migration: z.number(),
+		inflows: z.number(),
+		outflows: z.number(),
+		gross_migration: z.number(),
 	})
 	.nullable()
 	.optional();
@@ -106,6 +116,7 @@ export const populationDataResponseSchema = z.object({
 	natural_increase: naturalIncreaseDataSchema,
 	population_density: populationDensitySchema,
 	age_distribution: ageDistributionSchema,
+	sex_distribution: sexDistributionSchema.nullable().optional(),
 	demographics: demographicsSchema,
 	housing: housingMetricsSchema,
 	walkability: walkabilityScoresSchema,

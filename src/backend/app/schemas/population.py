@@ -41,6 +41,9 @@ class MigrationData(BaseModel):
     net_migration_rate: float = Field(..., description="Net migration as a percentage of the population.")
     domestic_migration: int
     international_migration: int
+    inflows: int
+    outflows: int
+    gross_migration: int
 
 class NaturalIncreaseData(BaseModel):
     """Data on population change from births and deaths."""
@@ -68,6 +71,13 @@ class AgeDistribution(BaseModel):
     over_65: int
     class Config:
         populate_by_name = True
+
+
+class SexDistribution(BaseModel):
+    male: int
+    female: int
+    percent_male: Optional[float] = None
+    percent_female: Optional[float] = None
 
 class Demographics(BaseModel):
     """Socio-economic and household composition metrics."""
@@ -107,6 +117,7 @@ class PopulationDataResponse(BaseModel):
 
     # Composition Metrics
     age_distribution: AgeDistribution
+    sex_distribution: Optional[SexDistribution] = None
     demographics: Demographics
 
     # Housing Metrics

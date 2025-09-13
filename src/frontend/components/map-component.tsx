@@ -28,9 +28,10 @@ const MapUpdater: React.FC<{ center: [number, number]; radius: number }> = ({
 }) => {
 	const map = useMap();
 	useEffect(() => {
+		if (!map) return; // Guard clause: Don't run effect if map isn't ready
 		if (radius > 0) {
-			const circle = L.circle(center, { radius });
-			map.fitBounds(circle.getBounds());
+			const bounds = L.latLng(center).toBounds(radius * 2);
+			map.fitBounds(bounds);
 		} else {
 			map.setView(center, 14);
 		}

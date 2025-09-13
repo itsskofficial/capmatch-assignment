@@ -25,6 +25,7 @@ import {
 	PieChart,
 	Pie,
 	Cell,
+	type PieLabelRenderProps,
 } from "recharts";
 import {
 	AlertCircle,
@@ -146,6 +147,7 @@ export function PopulationMetricsCard({
 		migration,
 		natural_increase,
 		housing,
+		sex_distribution,
 	} = data;
 
 	const ageData = [
@@ -162,31 +164,35 @@ export function PopulationMetricsCard({
 					{ name: "Owners", value: 100 - tenureValue },
 			  ]
 			: [];
+
+	const sexData =
+		sex_distribution &&
+		sex_distribution.male != null &&
+		sex_distribution.female != null
+			? [
+					{ name: "Male", value: sex_distribution.male },
+					{ name: "Female", value: sex_distribution.female },
+			  ]
+			: [];
 	const TENURE_COLORS = ["hsl(var(--primary))", "hsl(var(--muted))"];
 
 	const projectionKey = "Projection";
-	const chartDataMap = new Map();
+    const chartDataMap = new Map();
 
-	population_trends.trend.forEach((p) => {
-		chartDataMap.set(p.year, { year: p.year, [data.geography_name]: p.population });
-	});
+    population_trends.trend.forEach((p) => {
+        chartDataMap.set(p.year, { year: p.year, [data.geography_name]: p.population });
+    });
 
-	const projectionPoints = [
-		...(population_trends.trend.length > 0
-			? [population_trends.trend.slice(-1)[0]]
-			: []),
-		...population_trends.projection,
-	];
+    // Manually construct projection data to ensure the line connects correctly
+    if (population_trends.trend.length > 0 && population_trends.projection.length > 0) {
+        const lastTrendPoint = population_trends.trend.at(-1)!;
+        chartDataMap.get(lastTrendPoint.year)[projectionKey] = lastTrendPoint.population;
+        population_trends.projection.forEach((p) => {
+            chartDataMap.set(p.year, { year: p.year, [projectionKey]: p.population });
+        });
+    }
 
-	projectionPoints.forEach((p) => {
-		const entry = chartDataMap.get(p.year) || { year: p.year };
-		entry[projectionKey] = p.population;
-		chartDataMap.set(p.year, entry);
-	});
-
-	const trendData = Array.from(chartDataMap.values()).sort(
-		(a, b) => a.year - b.year
-	);
+    const trendData = Array.from(chartDataMap.values()).sort((a, b) => a.year - b.year);
 
 	let allTicks: number[] | undefined = undefined;
 	if (trendData.length > 0) {
@@ -205,18 +211,25 @@ export function PopulationMetricsCard({
 			? "text-green-600"
 			: "text-red-600";
 
-	const migrationData = migration
+	const inflowOutflowData = migration
 		? [
 				{
-					name: "Domestic",
-					value: migration.domestic_migration,
+					name: "Inflows",
+					value: migration.inflows,
 					fill: "hsl(var(--chart-1))",
 				},
 				{
-					name: "International",
-					value: migration.international_migration,
+					name: "Outflows",
+					value: migration.outflows,
 					fill: "hsl(var(--chart-2))",
 				},
+		  ]
+		: [];
+
+	const domesticIntlData = migration
+		? [
+				{ name: "Domestic", value: migration.domestic_migration, fill: "hsl(var(--chart-3))" },
+				{ name: "International", value: migration.international_migration, fill: "hsl(var(--chart-4))" },
 		  ]
 		: [];
 
@@ -359,7 +372,7 @@ export function PopulationMetricsCard({
 												dot={{ r: 2 }}
 												activeDot={{ r: 4 }}
 											/>
-											{projectionPoints.length > 1 && (
+											{population_trends.projection.length > 0 && (
 												<Line
 													type="monotone"
 													dataKey={projectionKey}
@@ -375,57 +388,135 @@ export function PopulationMetricsCard({
 									</ResponsiveContainer>
 								</div>
 							</div>
-						</div>
-					</TabsContent>
-
-					<TabsContent value="drivers" className="mt-6">
-						{migration && natural_increase ? (
-							<div className="grid md:grid-cols-2 gap-8 items-center">
+							{sexData.length > 0 && (
 								<div>
 									<h3 className="text-md font-semibold mb-2">
-										Migration Drivers (County)
+										Sex Distribution
 									</h3>
 									<div className="h-64 w-full">
 										<ResponsiveContainer
 											width="100%"
 											height="100%"
 										>
-											<BarChart
-												data={migrationData}
-												margin={{ left: 10 }}
-											>
-												<CartesianGrid strokeDasharray="3 3" />
-												<XAxis
-													dataKey="name"
-													tickLine={false}
-													axisLine={false}
-												/>
-												<YAxis />
+											<PieChart>
+												<Pie
+													data={sexData}
+													dataKey="value"
+													nameKey="name"
+													cx="50%"
+													cy="50%"
+													outerRadius={80}
+													label={(
+														props: PieLabelRenderProps
+													) =>
+														`${(
+															(props.percent ??
+																0) * 100
+														).toFixed(1)}%`
+													}
+												>
+													<Cell fill="hsl(var(--chart-2))" />
+													<Cell fill="hsl(var(--chart-4))" />
+												</Pie>
+												<Legend />
 												<Tooltip
-													cursor={{
-														fill: "hsl(var(--muted))",
-													}}
 													formatter={(
 														value: number
 													) => value.toLocaleString()}
 												/>
-												<Bar
-													dataKey="value"
-													radius={[4, 4, 0, 0]}
-												>
-													{migrationData.map(
-														(entry, index) => (
-															<Cell
-																key={`cell-${index}`}
-																fill={
-																	entry.fill
-																}
-															/>
-														)
-													)}
-												</Bar>
-											</BarChart>
+											</PieChart>
 										</ResponsiveContainer>
+									</div>
+								</div>
+							)}
+						</div>
+					</TabsContent>
+
+					<TabsContent value="drivers" className="mt-6">
+						{migration && natural_increase ? (
+							<div className="space-y-8">
+								<div>
+									<h3 className="text-md font-semibold mb-2">
+										Migration Drivers (County)
+									</h3>
+									<div className="grid md:grid-cols-2 gap-8 items-center h-64">
+										<div className="h-full w-full">
+											<ResponsiveContainer
+												width="100%"
+												height="100%"
+											>
+												<BarChart
+													data={inflowOutflowData}
+													margin={{ left: 10 }}
+												>
+													<CartesianGrid strokeDasharray="3 3" />
+													<XAxis
+														dataKey="name"
+														tickLine={false}
+														axisLine={false}
+													/>
+													<YAxis />
+													<Tooltip
+														cursor={{
+															fill: "hsl(var(--muted))",
+														}}
+														formatter={(
+															value: number
+														) => value.toLocaleString()}
+													/>
+													<Bar
+														dataKey="value"
+														radius={[4, 4, 0, 0]}
+													>
+														{inflowOutflowData.map(
+															(entry, index) => (
+																<Cell
+																	key={`cell-${index}`}
+																	fill={
+																		entry.fill
+																	}
+																/>
+															)
+														)}
+													</Bar>
+												</BarChart>
+											</ResponsiveContainer>
+										</div>
+										<div className="h-full w-full">
+											<ResponsiveContainer
+												width="100%"
+												height="100%"
+											>
+												<BarChart
+													data={domesticIntlData}
+													margin={{ left: 10 }}
+												>
+													<CartesianGrid strokeDasharray="3 3" />
+													<XAxis
+														dataKey="name"
+														tickLine={false}
+														axisLine={false}
+													/>
+													<YAxis />
+													<Tooltip
+														cursor={{
+															fill: "hsl(var(--muted))",
+														}}
+														formatter={(
+															value: number
+														) => value.toLocaleString()}
+													/>
+													<Bar
+														dataKey="value"
+														fill="hsl(var(--chart-3))"
+														radius={[4, 4, 0, 0]}
+													>
+														<Cell fill="hsl(var(--chart-3))" />
+														<Cell fill="hsl(var(--chart-4))" />
+													</Bar>
+												</BarChart>
+											</ResponsiveContainer>
+										</div>
 									</div>
 								</div>
 								<div>
