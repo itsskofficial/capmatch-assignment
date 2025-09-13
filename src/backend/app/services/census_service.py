@@ -15,9 +15,9 @@ from loguru import logger
 from app.core.config import settings
 from app.schemas.population import (
     PopulationDataResponse, AgeDistribution, Demographics, Coordinates,
-    GrowthMetrics, MigrationData, NaturalIncreaseData, PopulationDensity,
-    PopulationTrend, PopulationTrendPoint, WalkabilityScores, BenchmarkData, SexDistribution,
-    HousingMetrics
+    GrowthMetrics, MigrationData, NaturalIncreaseData, PopulationDensity, PopulationTrend,
+    PopulationTrendPoint, WalkabilityScores, BenchmarkData, SexDistribution, HousingMetrics,
+    HouseholdComposition, RaceAndEthnicity, EconomicContext
 )
 from app.models.population import PopulationCache
 
@@ -33,10 +33,29 @@ ACS_VARS = {
     "B25003_001E": "total_occupied_units", "B25003_003E": "renter_occupied_units",
     "B15003_001E": "edu_total_pop_25_over", "B15003_022E": "edu_bachelors",
     "B15003_023E": "edu_masters", "B15003_024E": "edu_professional", "B15003_025E": "edu_doctorate",
-    # New variables
     "B25010_001E": "avg_household_size",
     "B25077_001E": "median_home_value",
     "B25064_001E": "median_gross_rent",
+    # Household Composition (B11001)
+    "B11001_001E": "total_households",
+    "B11001_002E": "family_households",
+    "B11001_003E": "married_couple_family",
+    "B11001_007E": "nonfamily_households",
+    # Race/Ethnicity (B03002)
+    "B03002_001E": "race_total", "B03002_003E": "race_white_non_hispanic",
+    "B03002_004E": "race_black_non_hispanic", "B03002_005E": "race_native_non_hispanic",
+    "B03002_006E": "race_asian_non_hispanic", "B03002_007E": "race_pacific_non_hispanic",
+    "B03002_008E": "race_other_non_hispanic", "B03002_009E": "race_two_plus_non_hispanic",
+    "B03002_012E": "race_hispanic",
+    # Labor Force (B23025)
+    "B23025_001E": "lf_total_pop_16_over",
+    "B23025_002E": "lf_in_labor_force",
+    # Median Year Built (B25035)
+    "B25035_001E": "median_year_built",
+    # Vacancy (B25002, B25003, B25004)
+    "B25002_001E": "total_housing_units", "B25002_003E": "vacant_units",
+    "B25003_002E": "owner_occupied_units",
+    "B25004_002E": "vacant_for_rent", "B25004_004E": "vacant_for_sale",
     "B01001_002E": "total_male",
     "B01001_026E": "total_female",
     # Age Groups (Male)
@@ -49,6 +68,13 @@ ACS_VARS = {
 # --- Population Estimates Program (PEP) Variables (For drivers of change) ---
 PEP_VARS = ("POP", "BIRTHS", "DEATHS", "NATURALINC", "NETMIG", "DOMESTICMIG", "INTERNATIONALMIG")
 
+# --- Subject & Profile Table Variables (For direct percentages/means) ---
+SUBJECT_VARS = {
+    "S1701_C03_001E": "poverty_rate_percent",
+}
+PROFILE_VARS = {
+    "DP03_0025E": "mean_commute_time",
+}
 
 class CensusService:
     def __init__(self):
@@ -85,12 +111,16 @@ class CensusService:
         # --- Optimization: Fetch all tract data for the latest year in one call to reduce total requests ---
         tasks = {
             "latest_year_tract_data": self._fetch_large_acs_dataset(fips, LATEST_ACS_YEAR, 'tract', list(ACS_VARS.keys())),
+            "subject_data": self._fetch_acs_data(fips, LATEST_ACS_YEAR, 'tract', list(SUBJECT_VARS.keys()), endpoint="subject"),
+            "profile_data": self._fetch_acs_data(fips, LATEST_ACS_YEAR, 'tract', list(PROFILE_VARS.keys()), endpoint="profile"),
             "historical_tract_trend": self._fetch_population_trend_acs(fips, historical_years[:-1], 'tract'),
             "county_trend": self._fetch_population_trend_acs(fips, historical_years, 'county'),
             "county_drivers": self._fetch_pep_county_components(fips),
             "migration_flows": self._fetch_migration_flows(fips),
             "walkability": self._get_walkability_scores(address, lat=coords['lat'], lon=coords['lon']),
         }
+
+
         logger.info(f"Executing {len(tasks)} tasks concurrently...")
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
         task_results = dict(zip(tasks.keys(), results))
@@ -154,6 +184,8 @@ class CensusService:
         logger.info("Formatting all retrieved data into the final response model.")
         response_data = self._format_response_data(
             acs_data=main_acs_data,
+            subject_data=task_results.get("subject_data"),
+            profile_data=task_results.get("profile_data"),
             trend=tract_trend,
             projection=projections,
             benchmarks=BenchmarkData(
@@ -306,7 +338,7 @@ class CensusService:
         
         tasks = [
             self._fetch_acs_data(fips, year, geo_level, chunk)
-            for chunk in variable_chunks
+            for chunk in variable_chunks # Using default endpoint="acs5"
         ]
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -392,11 +424,11 @@ class CensusService:
             logger.exception("An unexpected error occurred during walkability fetch.")
             return None
 
-    async def _fetch_acs_data(self, fips: Dict[str, str], year: int, geo_level: str, variables: List[str]) -> Optional[Dict[str, Any]]:
+    async def _fetch_acs_data(self, fips: Dict[str, str], year: int, geo_level: str, variables: List[str], endpoint: str = "acs5") -> Optional[Dict[str, Any]]:
         """
-        Fetches ACS 5-Year data directly from the Census API using httpx.
+        Fetches ACS 5-Year data from a specified endpoint (acs5, subject, profile).
         """
-        logger.info(f"Fetching ACS 5-Year data for geo='{geo_level}', year='{year}', fips='{fips}'.")
+        logger.info(f"Fetching ACS data from '{endpoint}' for geo='{geo_level}', year='{year}'.")
         geo_filter = {}
         if geo_level == 'tract':
             geo_filter = {'for': f"tract:{fips['tract']}", 'in': f"state:{fips['state']} county:{fips['county']}"}
@@ -410,7 +442,13 @@ class CensusService:
             logger.error(f"Unsupported geography level '{geo_level}' for ACS fetch.")
             return None
 
-        base_url = f"https://api.census.gov/data/{year}/acs/acs5"
+        if endpoint in ("subject", "profile"):
+            dataset = f"acs5/{endpoint}"
+        else:
+            dataset = "acs5"  # or another appropriate default
+
+        base_url = f"https://api.census.gov/data/{year}/acs/{dataset}"
+
         params = {
             "get": ",".join(('NAME', *variables)),
             **geo_filter,
@@ -592,6 +630,8 @@ class CensusService:
     def _format_response_data(
         self,
         acs_data: Optional[Dict[str, Any]],
+        subject_data: Optional[Dict[str, Any]],
+        profile_data: Optional[Dict[str, Any]],
         trend: List[PopulationTrendPoint],
         projection: List[PopulationTrendPoint],
         benchmarks: BenchmarkData,
@@ -603,6 +643,8 @@ class CensusService:
     ) -> PopulationDataResponse:
         logger.info("Starting final response formatting.")
         if not acs_data:
+            # acs_data is the main data source, so we fail if it's missing.
+            # subject_data and profile_data are treated as optional.
             logger.error("Cannot format response: main ACS data is missing.")
             raise HTTPException(status_code=404, detail=f"No ACS demographic data found for this {geo_level} in {year}.")
         
@@ -646,20 +688,75 @@ class CensusService:
         bachelors_or_higher = sum(acs_data.get(k, 0) or 0 for k in ["B15003_022E", "B15003_023E", "B15003_024E", "B15003_025E"])
         total_pop_25_over = acs_data.get("B15003_001E", 0)
         percent_bachelors = round((bachelors_or_higher / total_pop_25_over) * 100, 1) if total_pop_25_over and total_pop_25_over > 0 else None
-        
+
+        logger.debug("Calculating household composition.")
+        total_households = acs_data.get("B11001_001E", 0) or 0
+        family_households = acs_data.get("B11001_002E", 0) or 0
+        married_couple_family = acs_data.get("B11001_003E", 0) or 0
+        nonfamily_households = acs_data.get("B11001_007E", 0) or 0
+        household_comp = HouseholdComposition(
+            total_households=total_households,
+            percent_family_households=round((family_households / total_households) * 100, 1) if total_households > 0 else None,
+            percent_married_couple_family=round((married_couple_family / total_households) * 100, 1) if total_households > 0 else None,
+            percent_non_family_households=round((nonfamily_households / total_households) * 100, 1) if total_households > 0 else None
+        )
+
+        logger.debug("Calculating race and ethnicity breakdown.")
+        race_total = acs_data.get("B03002_001E", 0) or 0
+        other_non_hispanic = sum(acs_data.get(k, 0) or 0 for k in ["B03002_005E", "B03002_007E", "B03002_008E", "B03002_009E"])
+        race_ethnicity = RaceAndEthnicity(
+            percent_white_non_hispanic=round((acs_data.get("B03002_003E", 0) / race_total) * 100, 1) if race_total > 0 else None,
+            percent_black_non_hispanic=round((acs_data.get("B03002_004E", 0) / race_total) * 100, 1) if race_total > 0 else None,
+            percent_asian_non_hispanic=round((acs_data.get("B03002_006E", 0) / race_total) * 100, 1) if race_total > 0 else None,
+            percent_hispanic=round((acs_data.get("B03002_012E", 0) / race_total) * 100, 1) if race_total > 0 else None,
+            percent_other_non_hispanic=round((other_non_hispanic / race_total) * 100, 1) if race_total > 0 else None
+        )
+
         demographics = Demographics(
             median_household_income=acs_data.get("B19013_001E"),
             percent_bachelors_or_higher=percent_bachelors,
-            avg_household_size=acs_data.get("B25010_001E")
+            avg_household_size=acs_data.get("B25010_001E"),
+            household_composition=household_comp,
+            race_and_ethnicity=race_ethnicity
         )
 
+        logger.debug("Calculating economic context metrics.")
+        lf_total_pop = acs_data.get("B23025_001E", 0) or 0
+        in_labor_force = acs_data.get("B23025_002E", 0) or 0
+        economic_context = EconomicContext(
+            poverty_rate=subject_data.get("S1701_C03_001E") if subject_data else None,
+            labor_force_participation_rate=round((in_labor_force / lf_total_pop) * 100, 1) if lf_total_pop > 0 else None,
+            mean_commute_time_minutes=profile_data.get("DP03_0025E") if profile_data else None
+        )
+
+        logger.debug("Calculating housing metrics.")
         renters, total_occupied = acs_data.get("B25003_003E", 0), acs_data.get("B25003_001E", 0)
         percent_renter = round((renters / total_occupied) * 100, 1) if total_occupied and total_occupied > 0 else None
-        
+
+        total_units = acs_data.get("B25002_001E", 0) or 0
+        vacant_units = acs_data.get("B25002_003E", 0) or 0
+        vacancy_rate = round((vacant_units / total_units) * 100, 1) if total_units > 0 else None
+
+        # Rental Vacancy Rate = (Vacant For Rent) / (Renter Occupied + Vacant For Rent)
+        vacant_for_rent = acs_data.get("B25004_002E", 0) or 0
+        renter_occupied = acs_data.get("B25003_003E", 0) or 0
+        rental_denominator = renter_occupied + vacant_for_rent
+        rental_vacancy_rate = round((vacant_for_rent / rental_denominator) * 100, 1) if rental_denominator > 0 else None
+
+        # Homeowner Vacancy Rate = (Vacant For Sale) / (Owner Occupied + Vacant For Sale)
+        vacant_for_sale = acs_data.get("B25004_004E", 0) or 0
+        owner_occupied = acs_data.get("B25003_002E", 0) or 0
+        homeowner_denominator = owner_occupied + vacant_for_sale
+        homeowner_vacancy_rate = round((vacant_for_sale / homeowner_denominator) * 100, 1) if homeowner_denominator > 0 else None
+
         housing_metrics = HousingMetrics(
             percent_renter_occupied=percent_renter,
             median_home_value=acs_data.get("B25077_001E"),
-            median_gross_rent=acs_data.get("B25064_001E")
+            median_gross_rent=acs_data.get("B25064_001E"),
+            median_year_structure_built=acs_data.get("B25035_001E"),
+            vacancy_rate=vacancy_rate,
+            rental_vacancy_rate=rental_vacancy_rate,
+            homeowner_vacancy_rate=homeowner_vacancy_rate,
         )
 
         age_distribution = AgeDistribution(
@@ -692,6 +789,7 @@ class CensusService:
             sex_distribution=sex_distribution,
             demographics=demographics,
             housing=housing_metrics,
+            economic_context=economic_context,
             walkability=walkability,
             population_trends=PopulationTrend(trend=trend, projection=projection, benchmark=benchmarks)
         )

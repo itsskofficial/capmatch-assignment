@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@components/providers";
+import { Toaster } from "@components/ui/sonner";
 
 // Import Leaflet CSS
 import "leaflet/dist/leaflet.css";
@@ -21,7 +22,10 @@ export default function RootLayout({
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<body className={inter.className}>
-				<Providers>{children}</Providers>
+				<Providers>
+					{children}
+					<Toaster richColors />
+				</Providers>
 			</body>
 		</html>
 	);

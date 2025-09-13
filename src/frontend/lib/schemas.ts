@@ -44,16 +44,43 @@ const benchmarkDataSchema = z
 	.nullable()
 	.optional();
 
+const householdCompositionSchema = z.object({
+	total_households: z.number().nullable(),
+	percent_family_households: z.number().nullable(),
+	percent_married_couple_family: z.number().nullable(),
+	percent_non_family_households: z.number().nullable(),
+}).nullable().optional();
+
+const raceAndEthnicitySchema = z.object({
+	percent_white_non_hispanic: z.number().nullable(),
+	percent_black_non_hispanic: z.number().nullable(),
+	percent_asian_non_hispanic: z.number().nullable(),
+	percent_hispanic: z.number().nullable(),
+	percent_other_non_hispanic: z.number().nullable(),
+}).nullable().optional();
+
 const demographicsSchema = z.object({
 	median_household_income: z.number().nullable(),
 	percent_bachelors_or_higher: z.number().nullable(),
 	avg_household_size: z.number().nullable(),
+	household_composition: householdCompositionSchema,
+	race_and_ethnicity: raceAndEthnicitySchema,
 });
+
+const economicContextSchema = z.object({
+	poverty_rate: z.number().nullable(),
+	labor_force_participation_rate: z.number().nullable(),
+	mean_commute_time_minutes: z.number().nullable(),
+}).nullable().optional();
 
 const housingMetricsSchema = z.object({
 	percent_renter_occupied: z.number().nullable(),
 	median_home_value: z.number().nullable(),
 	median_gross_rent: z.number().nullable(),
+	median_year_structure_built: z.number().nullable(),
+	vacancy_rate: z.number().nullable(),
+	rental_vacancy_rate: z.number().nullable(),
+	homeowner_vacancy_rate: z.number().nullable(),
 });
 
 const coordinatesSchema = z.object({
@@ -119,6 +146,7 @@ export const populationDataResponseSchema = z.object({
 	sex_distribution: sexDistributionSchema.nullable().optional(),
 	demographics: demographicsSchema,
 	housing: housingMetricsSchema,
+	economic_context: economicContextSchema,
 	walkability: walkabilityScoresSchema,
 	population_trends: populationTrendSchema,
 });

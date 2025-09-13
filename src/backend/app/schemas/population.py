@@ -83,17 +83,46 @@ class SexDistribution(BaseModel):
     percent_male: Optional[float] = None
     percent_female: Optional[float] = None
 
+class HouseholdComposition(BaseModel):
+    """Metrics related to household types."""
+    total_households: Optional[int] = None
+    percent_family_households: Optional[float] = None
+    percent_married_couple_family: Optional[float] = None
+    percent_non_family_households: Optional[float] = None
+
+class RaceAndEthnicity(BaseModel):
+    """Metrics on the racial and ethnic diversity of the area."""
+    percent_white_non_hispanic: Optional[float] = None
+    percent_black_non_hispanic: Optional[float] = None
+    percent_asian_non_hispanic: Optional[float] = None
+    percent_hispanic: Optional[float] = None
+    percent_other_non_hispanic: Optional[float] = None
+
 class Demographics(BaseModel):
     """Socio-economic and household composition metrics."""
     median_household_income: Optional[int] = None
     percent_bachelors_or_higher: Optional[float] = None
     avg_household_size: Optional[float] = None
+    household_composition: Optional[HouseholdComposition] = None
+    race_and_ethnicity: Optional[RaceAndEthnicity] = None
+
+class EconomicContext(BaseModel):
+    """Metrics related to the economic health and lifestyle of the area."""
+    poverty_rate: Optional[float] = None
+    labor_force_participation_rate: Optional[float] = None
+    mean_commute_time_minutes: Optional[float] = None
 
 class HousingMetrics(BaseModel):
     """Housing market and tenure metrics."""
     percent_renter_occupied: Optional[float] = None
     median_home_value: Optional[int] = None
     median_gross_rent: Optional[int] = None
+    median_year_structure_built: Optional[int] = None
+    vacancy_rate: Optional[float] = None
+    rental_vacancy_rate: Optional[float] = None
+    homeowner_vacancy_rate: Optional[float] = None
+
+
 
 # --- Main Response Schema (Heavily Modified) ---
 class PopulationDataResponse(BaseModel):
@@ -126,6 +155,9 @@ class PopulationDataResponse(BaseModel):
 
     # Housing Metrics
     housing: HousingMetrics
+
+    # Economic Context
+    economic_context: Optional[EconomicContext] = None
 
     # Ancillary Metrics
     walkability: Optional[WalkabilityScores] = None

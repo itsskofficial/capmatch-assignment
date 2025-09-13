@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { v4 as uuidv4 } from "uuid";
+import { useEffect } from "react";
 import {
 	Compass,
 	BarChartHorizontal,
@@ -39,136 +38,30 @@ import {
 } from "@components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@components/ui/tabs";
 
-import type { AddressEntry } from "@lib/types";
-import {
-	populationDataResponseSchema,
-	type MarketDataRequest,
-	type PopulationDataResponse,
-} from "@lib/schemas";
-
-async function fetchPopulationData(
-	requestData: MarketDataRequest
-): Promise<PopulationDataResponse> {
-	const body = {
-		address: requestData.address,
-	};
-	const response = await fetch("/api/v1/market-data", {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(body),
-	});
-	if (!response.ok) {
-		const errorBody = await response.json();
-		throw new Error(errorBody.detail || "An unknown error occurred");
-	}
-	const data = await response.json();
-	return populationDataResponseSchema.parse(data);
-}
+import { useAddressStore } from "@/stores/addressStore";
 
 export default function HomePage() {
-	type Mode = "explore" | "compare";
-	const [mode, setMode] = useState<Mode>("explore");
-
-	const [addresses, setAddresses] = useState<AddressEntry[]>([]);
-	const [selectedAddress, setSelectedAddress] = useState<AddressEntry | null>(
-		null
-	);
-	const [cachedAddresses, setCachedAddresses] = useState<string[]>([]);
-
-	const fetchCachedAddresses = async () => {
-		try {
-			const response = await fetch("/api/v1/market-data/cache");
-			if (!response.ok) {
-				throw new Error("Failed to fetch cached addresses");
-			}
-			const data: string[] = await response.json();
-			setCachedAddresses(data);
-		} catch (error) {
-			console.error(error);
-			// Optionally, show an error to the user
-		}
-	};
+	const {
+		mode,
+		addresses,
+		selectedAddress,
+		cachedAddresses,
+		setMode,
+		addAddress,
+		removeAddress,
+		selectAddress,
+		fetchCachedAddresses,
+		removeAddressFromCache,
+	} = useAddressStore();
 
 	// Fetch cached addresses on initial component mount
 	useEffect(() => {
 		fetchCachedAddresses();
-	}, []);
-
-	const addAddress = (data: AddAddressSchema) => {
-		// Prevent adding an address that's already in the list (either fetched or loading)
-		if (
-			addresses.some(
-				(addr) =>
-					addr.value.trim().toLowerCase() ===
-					data.address.trim().toLowerCase()
-			)
-		)
-			return;
-
-		const newAddress: AddressEntry = {
-			id: uuidv4(),
-			value: data.address,
-			status: "loading",
-		};
-		setAddresses((prev) => [...prev, newAddress]);
-
-		const fetchAndSet = async () => {
-			try {
-				const fetchedData = await fetchPopulationData({
-					address: newAddress.value,
-				});
-				setAddresses((prev) =>
-					prev.map((a) =>
-						a.id === newAddress.id
-							? { ...a, status: "success", data: fetchedData }
-							: a
-					)
-				);
-				// Refresh the cache list from the DB after a successful fetch
-				fetchCachedAddresses();
-			} catch (error: unknown) {
-				const errorMessage =
-					error instanceof Error
-						? error.message
-						: "An unknown error occurred";
-				setAddresses((prev) =>
-					prev.map((a) =>
-						a.id === newAddress.id
-							? { ...a, status: "error", error: errorMessage }
-							: a
-					)
-				);
-			}
-		};
-
-		fetchAndSet();
-	};
-
-	const removeAddress = (id: string) => {
-		setAddresses((prev) => prev.filter((addr) => addr.id !== id));
-	};
-
-	const removeAddressFromCache = async (address: string) => {
-		try {
-			const response = await fetch("/api/v1/market-data/cache", {
-				method: "DELETE",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ address }),
-			});
-
-			if (!response.ok) {
-				throw new Error("Failed to delete address from server cache.");
-			}
-			// Refresh the cache list from the DB after a successful deletion
-			fetchCachedAddresses();
-		} catch (error) {
-			console.error("Error deleting address from server cache:", error);
-		}
-	};
+	}, [fetchCachedAddresses]);
 
 	const dockItems = [
-		{ title: "explore" as Mode, icon: <Compass /> },
-		{ title: "compare" as Mode, icon: <BarChartHorizontal /> },
+		{ title: "explore" as const, icon: <Compass /> },
+		{ title: "compare" as const, icon: <BarChartHorizontal /> },
 	];
 
 	const successfulAddresses = addresses.filter(
@@ -217,7 +110,7 @@ export default function HomePage() {
 								<MultiAddressOutput
 									addresses={addresses}
 									onRemoveAddress={removeAddress}
-									onSelectAddress={setSelectedAddress}
+									onSelectAddress={selectAddress}
 									isAnyModalOpen={!!selectedAddress}
 								/>
 							)}
@@ -300,7 +193,9 @@ export default function HomePage() {
 							<ScrollArea className="h-full">
 								<div className="p-4 md:p-6 lg:p-8">
 									<MultiAddressInput
-										onAddAddress={addAddress}
+										onAddAddress={(data) =>
+											addAddress(data.address)
+										}
 										addresses={addresses}
 										onRemoveAddress={removeAddress}
 										cachedAddresses={cachedAddresses}
@@ -316,7 +211,7 @@ export default function HomePage() {
 			</div>
 			<Dialog
 				open={!!selectedAddress}
-				onOpenChange={() => setSelectedAddress(null)}
+				onOpenChange={() => selectAddress(null)}
 			>
 				<DialogContent className="sm:max-w-7xl w-full h-[90vh] flex flex-col">
 					<DialogHeader>

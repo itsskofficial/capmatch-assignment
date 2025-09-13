@@ -92,6 +92,24 @@ const transformDataForBarChart = (
 					])
 				),
 			},
+			{
+				metric: "Poverty Rate",
+				...Object.fromEntries(
+					addresses.map((addr) => [
+						addr.data!.geography_name,
+						addr.data!.economic_context?.poverty_rate,
+					])
+				),
+			},
+			{
+				metric: "Mean Commute (min)",
+				...Object.fromEntries(
+					addresses.map((addr) => [
+						addr.data!.geography_name,
+						addr.data!.economic_context?.mean_commute_time_minutes,
+					])
+				),
+			},
 		];
 	}
 	if (metric === "housing") {
@@ -120,6 +138,24 @@ const transformDataForBarChart = (
 					addresses.map((addr) => [
 						addr.data!.geography_name,
 						addr.data!.housing.median_gross_rent,
+					])
+				),
+			},
+			{
+				metric: "Median Year Built",
+				...Object.fromEntries(
+					addresses.map((addr) => [
+						addr.data!.geography_name,
+						addr.data!.housing.median_year_structure_built,
+					])
+				),
+			},
+			{
+				metric: "Vacancy Rate (%)",
+				...Object.fromEntries(
+					addresses.map((addr) => [
+						addr.data!.geography_name,
+						addr.data!.housing.vacancy_rate,
 					])
 				),
 			},

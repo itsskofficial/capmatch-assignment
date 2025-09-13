@@ -40,6 +40,9 @@ import {
 	TrendingDown,
 	Users2,
 	Building,
+	Briefcase,
+	Clock,
+	House,
 } from "lucide-react";
 import type { PopulationDataResponse } from "@lib/schemas";
 import { cn } from "@lib/utils";
@@ -171,6 +174,8 @@ export function PopulationMetricsCard({
 		migration,
 		natural_increase,
 		housing,
+		demographics,
+		economic_context,
 		sex_distribution,
 	} = data;
 
@@ -179,6 +184,26 @@ export function PopulationMetricsCard({
 		{ name: "18-34", value: data.age_distribution._18_to_34 },
 		{ name: "35-64", value: data.age_distribution._35_to_64 },
 		{ name: "65+", value: data.age_distribution.over_65 },
+	];
+
+	const householdData = demographics.household_composition ? [
+		{ name: "Family", value: demographics.household_composition.percent_family_households ?? 0 },
+		{ name: "Non-Family", value: demographics.household_composition.percent_non_family_households ?? 0 },
+	] : [];
+
+	const raceData = demographics.race_and_ethnicity ? [
+		{ name: "White", value: demographics.race_and_ethnicity.percent_white_non_hispanic ?? 0 },
+		{ name: "Black", value: demographics.race_and_ethnicity.percent_black_non_hispanic ?? 0 },
+		{ name: "Asian", value: demographics.race_and_ethnicity.percent_asian_non_hispanic ?? 0 },
+		{ name: "Hispanic", value: demographics.race_and_ethnicity.percent_hispanic ?? 0 },
+		{ name: "Other", value: demographics.race_and_ethnicity.percent_other_non_hispanic ?? 0 },
+	] : [];
+	const RACE_COLORS = [
+		"hsl(var(--chart-1))",
+		"hsl(var(--chart-2))",
+		"hsl(var(--chart-3))",
+		"hsl(var(--chart-4))",
+		"hsl(var(--chart-5))",
 	];
 	const tenureValue = housing.percent_renter_occupied;
 	const tenureData =
@@ -278,11 +303,12 @@ export function PopulationMetricsCard({
 			</CardHeader>
 			<CardContent className="space-y-6">
 				<Tabs defaultValue="overview">
-					<TabsList className="grid w-full grid-cols-3">
+					<TabsList className="grid w-full grid-cols-4">
 						<TabsTrigger value="overview">Overview</TabsTrigger>
 						<TabsTrigger value="demographics">
-							Demographics & Drivers
+							Demographics
 						</TabsTrigger>
+						<TabsTrigger value="economics">Economics & Drivers</TabsTrigger>
 						<TabsTrigger value="housing">Housing</TabsTrigger>
 					</TabsList>
 
@@ -451,10 +477,9 @@ export function PopulationMetricsCard({
 								<StatItem
 									icon={DollarSign}
 									label="Median Income"
-									value={
-										data.demographics
+									value={demographics
 											.median_household_income
-											? `$${data.demographics.median_household_income.toLocaleString()}`
+											? `$${demographics.median_household_income.toLocaleString()}`
 											: "N/A"
 									}
 									tooltip={`The median household income in the past 12 months (in ${data.data_year} inflation-adjusted dollars). Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B19013.`}
@@ -462,8 +487,7 @@ export function PopulationMetricsCard({
 								<StatItem
 									icon={GraduationCap}
 									label="Bachelor's+"
-									value={
-										data.demographics
+									value={demographics
 											.percent_bachelors_or_higher
 									}
 									unit="%"
@@ -472,7 +496,7 @@ export function PopulationMetricsCard({
 								<StatItem
 									icon={Users2}
 									label="Avg. Household Size"
-									value={data.demographics.avg_household_size}
+									value={demographics.avg_household_size}
 									unit="people"
 									tooltip={`The average number of people per household. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25010.`}
 								/>
@@ -586,6 +610,73 @@ export function PopulationMetricsCard({
 									</div>
 								</div>
 							)}
+							{householdData.length > 0 && (
+								<div>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<h3 className="text-md font-semibold mb-2 cursor-help w-fit">
+												Household Composition
+											</h3>
+										</TooltipTrigger>
+										<TooltipContent>
+											<p className="max-w-xs">
+												The breakdown of family vs. non-family households. Source: U.S. Census Bureau, {data.data_year} ACS 5-Year Estimates, Table B11001.
+											</p>
+										</TooltipContent>
+									</Tooltip>
+									<div className="h-64 w-full">
+										<ResponsiveContainer width="100%" height="100%">
+											<PieChart>
+												<Pie data={householdData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+													<Cell fill="hsl(var(--chart-1))" />
+													<Cell fill="hsl(var(--chart-3))" />
+												</Pie>
+												<Legend />
+												<Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+											</PieChart>
+										</ResponsiveContainer>
+									</div>
+								</div>
+							)}
+							{raceData.length > 0 && (
+								<div>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<h3 className="text-md font-semibold mb-2 cursor-help w-fit">
+												Race & Ethnicity
+											</h3>
+										</TooltipTrigger>
+										<TooltipContent>
+											<p className="max-w-xs">
+												The racial and ethnic breakdown of the tract population. "Other" includes American Indian, Pacific Islander, Other, and Two or More Races. Source: U.S. Census Bureau, {data.data_year} ACS 5-Year Estimates, Table B03002.
+											</p>
+										</TooltipContent>
+									</Tooltip>
+									<div className="h-64 w-full">
+										<ResponsiveContainer width="100%" height="100%">
+											<PieChart>
+												<Pie data={raceData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={(props: PieLabelRenderProps) => `${((props.percent ?? 0) * 100).toFixed(0)}%`}>
+													{raceData.map((entry, index) => (
+														<Cell key={`cell-${index}`} fill={RACE_COLORS[index % RACE_COLORS.length]} />
+													))}
+												</Pie>
+												<Legend />
+												<Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+											</PieChart>
+										</ResponsiveContainer>
+									</div>
+								</div>
+							)}
+						</div>
+					</TabsContent>
+
+					<TabsContent value="economics" className="mt-6">
+						<div className="space-y-8">
+							<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+								<StatItem icon={TrendingDown} label="Poverty Rate" value={economic_context?.poverty_rate} unit="%" tooltip={`Percentage of the population with income in the past 12 months below the poverty level. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Subject Tables, Table S1701.`} />
+								<StatItem icon={Briefcase} label="Labor Force Participation" value={economic_context?.labor_force_participation_rate} unit="%" tooltip={`The percentage of the population aged 16 and over that is in the labor force (either employed or unemployed but looking for work). Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B23025.`} />
+								<StatItem icon={Clock} label="Mean Commute" value={economic_context?.mean_commute_time_minutes?.toFixed(1)} unit="min" tooltip={`The average travel time to work for workers 16 years and over who did not work from home. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Data Profiles, Table DP03.`} />
+							</div>
 							{migration && (
 								<div>
 									<Tooltip>
@@ -751,7 +842,7 @@ export function PopulationMetricsCard({
 								<StatItem
 									icon={Home}
 									label="Renter Occupied"
-									value={housing.percent_renter_occupied}
+									value={housing.percent_renter_occupied?.toFixed(1)}
 									unit="%"
 									tooltip={`The percentage of occupied housing units that are renter-occupied. Derived from U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25003.`}
 								/>
@@ -775,6 +866,10 @@ export function PopulationMetricsCard({
 									}
 									tooltip={`The median gross rent for renter-occupied units. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25064.`}
 								/>
+								<StatItem icon={Building} label="Median Year Built" value={housing.median_year_structure_built} tooltip={`The median year in which housing structures in the tract were built. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25035.`} />
+								<StatItem icon={House} label="Overall Vacancy" value={housing.vacancy_rate} unit="%" tooltip={`The percentage of all housing units that are vacant. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25002.`} />
+								<StatItem icon={House} label="Rental Vacancy" value={housing.rental_vacancy_rate} unit="%" tooltip={`The percentage of rental units (occupied + for rent) that are vacant. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Tables B25003 & B25004.`} />
+
 							</div>
 							<div>
 								<Tooltip>
