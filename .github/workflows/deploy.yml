@@ -41,8 +41,8 @@ jobs:
             # Rebuild and restart the services using Docker Compose
             # The docker-compose.yaml is at the root of the project, so we run the command here
             echo "Building and deploying services..."
-            docker-compose down
-            docker-compose up --build -d
+            docker compose down
+            docker compose up --build -d
 
             # Clean up old, unused Docker images to save space
             echo "Cleaning up old Docker images..."
