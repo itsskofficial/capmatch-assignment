@@ -1,12 +1,7 @@
 "use client";
 
-import { useForm } from "react-hook-form";
 import { XIcon, PlusIcon } from "lucide-react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-
 import { Button } from "@components/ui/button";
-import { Input } from "@components/ui/input";
 import {
 	Card,
 	CardContent,
@@ -17,14 +12,11 @@ import {
 import { Separator } from "@components/ui/separator";
 import { ScrollArea } from "@components/ui/scroll-area";
 import type { AddressIdentifier } from "@stores/addressStore";
-
-const addAddressSchema = z.object({
-	address: z.string().min(10, { message: "Please enter a valid address." }),
-});
-export type AddAddressSchema = z.infer<typeof addAddressSchema>;
+// Import the new component
+import { AddressAutocompleteInput } from "./address-autocomplete-input";
 
 interface MultiAddressInputProps {
-	onAddAddress: (data: AddAddressSchema) => void;
+	onAddAddress: (address: string) => void; // The prop now just takes a string
 	addresses: AddressIdentifier[];
 	onRemoveAddress: (id: string) => void;
 	cachedAddresses: string[];
@@ -38,18 +30,9 @@ export function MultiAddressInput({
 	cachedAddresses,
 	onRemoveFromCache,
 }: MultiAddressInputProps) {
-	const form = useForm<AddAddressSchema>({
-		resolver: zodResolver(addAddressSchema),
-		defaultValues: { address: "" },
-	});
-
-	const handleSubmit = (data: AddAddressSchema) => {
-		onAddAddress(data);
-		form.reset();
-	};
-
+	// We no longer need react-hook-form for this simple input
 	const handleAddFromCache = (address: string) => {
-		onAddAddress({ address });
+		onAddAddress(address);
 	};
 
 	return (
@@ -62,23 +45,10 @@ export function MultiAddressInput({
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
-					<form
-						onSubmit={form.handleSubmit(handleSubmit)}
-						className="flex items-start gap-2"
-					>
-						<div className="flex-grow">
-							<Input
-								placeholder="e.g., 1600 Amphitheatre Parkway..."
-								{...form.register("address")}
-							/>
-							{form.formState.errors.address && (
-								<p className="mt-1 text-sm text-destructive">
-									{form.formState.errors.address.message}
-								</p>
-							)}
-						</div>
-						<Button type="submit">Add</Button>
-					</form>
+					{/* Replace the form with our new component */}
+					<AddressAutocompleteInput
+						onAddressSelect={onAddAddress}
+					/>
 				</CardContent>
 			</Card>
 			<Separator />

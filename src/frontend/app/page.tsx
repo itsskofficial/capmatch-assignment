@@ -18,10 +18,7 @@ import {
 } from "@components/ui/resizable";
 import { ScrollArea } from "@components/ui/scroll-area";
 import { FloatingDock } from "@components/floating-dock";
-import {
-	MultiAddressInput,
-	type AddAddressSchema,
-} from "@components/multi-address-input";
+import { MultiAddressInput } from "@components/multi-address-input";
 import { MultiAddressOutput } from "@components/multi-address-output";
 import {
 	Card,
@@ -46,6 +43,7 @@ import {
 } from "@hooks/useMarketData";
 import type { AddressEntry } from "@lib/types";
 import type { PopulationDataResponse } from "@lib/schemas";
+import { ThemeToggle } from "@components/theme-toggle";
 
 const ComparisonChart = dynamic(
 	() =>
@@ -70,8 +68,8 @@ export default function HomePage() {
 	const queryClient = useQueryClient();
 
 	const handleAddAddress = useCallback(
-		(data: AddAddressSchema) => {
-			addAddress(data.address);
+		(address: string) => {
+			addAddress(address);
 		},
 		[addAddress]
 	);
@@ -135,6 +133,9 @@ export default function HomePage() {
 
 	return (
 		<div className="flex min-h-screen w-full bg-muted/40">
+			<div className="absolute top-4 right-4 z-50">
+				<ThemeToggle />
+			</div>
 			<aside className="fixed inset-y-0 left-0 z-10 hidden w-24 flex-col border-r bg-background sm:flex">
 				<div className="flex h-16 shrink-0 items-center justify-center border-b px-2">
 					{/* CapMatch Logo */}

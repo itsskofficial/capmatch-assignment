@@ -47,7 +47,9 @@ const transformDataForChart = (addresses: AddressEntry[]) => {
 		});
 	});
 
-	return Array.from(yearMap.values()).sort((a, b) => (a.year as number) - (b.year as number));
+	return Array.from(yearMap.values()).sort(
+		(a, b) => (a.year as number) - (b.year as number)
+	);
 };
 
 const transformDataForBarChart = (
@@ -62,7 +64,7 @@ const transformDataForBarChart = (
 					addresses.map((addr) => [
 						addr.data?.geography_name,
 						addr.data?.demographics?.median_household_income,
-					]),
+					])
 				),
 			},
 			{
@@ -71,7 +73,7 @@ const transformDataForBarChart = (
 					addresses.map((addr) => [
 						addr.data?.geography_name,
 						addr.data?.median_age,
-					]),
+					])
 				),
 			},
 			{
@@ -80,7 +82,7 @@ const transformDataForBarChart = (
 					addresses.map((addr) => [
 						addr.data?.geography_name,
 						addr.data?.demographics?.avg_household_size,
-					]),
+					])
 				),
 			},
 			{
@@ -89,7 +91,7 @@ const transformDataForBarChart = (
 					addresses.map((addr) => [
 						addr.data?.geography_name,
 						addr.data?.demographics?.percent_bachelors_or_higher,
-					]),
+					])
 				),
 			},
 			{
@@ -98,7 +100,7 @@ const transformDataForBarChart = (
 					addresses.map((addr) => [
 						addr.data?.geography_name,
 						addr.data?.economic_context?.poverty_rate,
-					]),
+					])
 				),
 			},
 			{
@@ -107,7 +109,7 @@ const transformDataForBarChart = (
 					addresses.map((addr) => [
 						addr.data?.geography_name,
 						addr.data?.economic_context?.mean_commute_time_minutes,
-					]),
+					])
 				),
 			},
 		];
@@ -120,7 +122,7 @@ const transformDataForBarChart = (
 					addresses.map((addr) => [
 						addr.data?.geography_name,
 						addr.data?.housing?.percent_renter_occupied,
-					]),
+					])
 				),
 			},
 			{
@@ -129,7 +131,7 @@ const transformDataForBarChart = (
 					addresses.map((addr) => [
 						addr.data?.geography_name,
 						addr.data?.housing?.median_home_value,
-					]),
+					])
 				),
 			},
 			{
@@ -138,7 +140,7 @@ const transformDataForBarChart = (
 					addresses.map((addr) => [
 						addr.data?.geography_name,
 						addr.data?.housing?.median_gross_rent,
-					]),
+					])
 				),
 			},
 			{
@@ -147,7 +149,7 @@ const transformDataForBarChart = (
 					addresses.map((addr) => [
 						addr.data?.geography_name,
 						addr.data?.housing?.median_year_structure_built,
-					]),
+					])
 				),
 			},
 			{
@@ -156,7 +158,7 @@ const transformDataForBarChart = (
 					addresses.map((addr) => [
 						addr.data?.geography_name,
 						addr.data?.housing?.vacancy_rate,
-					]),
+					])
 				),
 			},
 		];
@@ -164,7 +166,11 @@ const transformDataForBarChart = (
 	return [];
 };
 
-const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
+const CustomTooltip = ({
+	active,
+	payload,
+	label,
+}: TooltipProps<number, string>) => {
 	if (active && payload && payload.length) {
 		return (
 			<div className="rounded-lg border bg-background p-2 shadow-sm">
@@ -230,7 +236,7 @@ export function ComparisonChart({
 					/>
 					<XAxis
 						dataKey="year"
-						stroke="gray"
+						stroke="hsl(var(--muted-foreground))"
 						type="number"
 						domain={["dataMin", "dataMax"]}
 						allowDecimals={false}
@@ -239,7 +245,7 @@ export function ComparisonChart({
 					/>
 					<YAxis
 						tickFormatter={formatPopulation}
-						stroke="gray"
+						stroke="hsl(var(--muted-foreground))"
 						fontSize={12}
 					/>
 					<Tooltip content={<CustomTooltip />} />
@@ -288,7 +294,7 @@ export function ComparisonChart({
 								/>
 								<XAxis
 									type="number"
-									stroke="gray"
+									stroke="hsl(var(--muted-foreground))"
 									fontSize={12}
 								/>
 								<YAxis type="category" dataKey="metric" hide />

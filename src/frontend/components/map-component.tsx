@@ -7,9 +7,11 @@ import { useEffect } from "react";
 import { useMap } from "react-leaflet/hooks";
 import type { GeoJsonObject } from "geojson";
 import { useTractGeoJSON } from "@hooks/useMarketData";
+import { useTheme } from "next-themes";
 
 // Fix for default icon issue with Webpack
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)
+	._getIconUrl;
 L.Icon.Default.mergeOptions({
 	iconRetinaUrl:
 		"https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
@@ -47,8 +49,19 @@ const MapComponent: React.FC<MapComponentProps> = ({
 	fips,
 	interactive = false,
 }) => {
+	const { resolvedTheme } = useTheme();
 	const position: [number, number] = [lat, lon];
 	const { data: geoJsonData } = useTractGeoJSON(fips);
+
+	const tileUrl =
+		resolvedTheme === "dark"
+			? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+			: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+	const tileAttribution =
+		resolvedTheme === "dark"
+			? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+			: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 	return (
 		<MapContainer
@@ -63,15 +76,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
 			attributionControl={interactive}
 		>
 			<TileLayer
-				attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-				url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+				key={resolvedTheme}
+				attribution={tileAttribution}
+				url={tileUrl}
 			/>
 			<Marker position={position} />
 			{geoJsonData && (
 				<GeoJSON
 					data={geoJsonData as GeoJsonObject}
 					style={{
-						color: "blue",
+						color: resolvedTheme === "dark" ? "#93c5fd" : "#3b82f6", // blue-300 dark, blue-500 light
 						weight: 2,
 						opacity: 0.7,
 						fillOpacity: 0.2,
