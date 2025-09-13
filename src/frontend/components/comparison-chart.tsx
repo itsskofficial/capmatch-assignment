@@ -63,7 +63,7 @@ const transformDataForBarChart = (
 				...Object.fromEntries(
 					addresses.map((addr) => [
 						addr.data?.geography_name,
-						addr.data?.demographics?.median_household_income,
+						addr.data?.demographics?.median_household_income?.value,
 					])
 				),
 			},
@@ -72,7 +72,7 @@ const transformDataForBarChart = (
 				...Object.fromEntries(
 					addresses.map((addr) => [
 						addr.data?.geography_name,
-						addr.data?.median_age,
+						addr.data?.median_age?.value,
 					])
 				),
 			},
@@ -81,7 +81,7 @@ const transformDataForBarChart = (
 				...Object.fromEntries(
 					addresses.map((addr) => [
 						addr.data?.geography_name,
-						addr.data?.demographics?.avg_household_size,
+						addr.data?.demographics?.avg_household_size?.value,
 					])
 				),
 			},
@@ -108,7 +108,7 @@ const transformDataForBarChart = (
 				...Object.fromEntries(
 					addresses.map((addr) => [
 						addr.data?.geography_name,
-						addr.data?.economic_context?.mean_commute_time_minutes,
+						addr.data?.economic_context?.mean_commute_time_minutes?.value,
 					])
 				),
 			},
@@ -130,7 +130,7 @@ const transformDataForBarChart = (
 				...Object.fromEntries(
 					addresses.map((addr) => [
 						addr.data?.geography_name,
-						addr.data?.housing?.median_home_value,
+						addr.data?.housing?.median_home_value?.value,
 					])
 				),
 			},
@@ -139,7 +139,7 @@ const transformDataForBarChart = (
 				...Object.fromEntries(
 					addresses.map((addr) => [
 						addr.data?.geography_name,
-						addr.data?.housing?.median_gross_rent,
+						addr.data?.housing?.median_gross_rent?.value,
 					])
 				),
 			},
@@ -148,7 +148,7 @@ const transformDataForBarChart = (
 				...Object.fromEntries(
 					addresses.map((addr) => [
 						addr.data?.geography_name,
-						addr.data?.housing?.median_year_structure_built,
+						addr.data?.housing?.median_year_structure_built?.value,
 					])
 				),
 			},

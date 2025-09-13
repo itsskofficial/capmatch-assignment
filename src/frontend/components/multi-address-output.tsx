@@ -8,7 +8,7 @@ import type { AddressIdentifier } from "@stores/addressStore";
 
 interface MultiAddressOutputProps {
 	addresses: AddressIdentifier[];
-	onRemoveAddress: (id: string) => void;
+	onRemoveAddress: (address: AddressIdentifier) => void;
 	onSelectAddress: (address: AddressIdentifier) => void;
 	isAnyModalOpen: boolean;
 }
@@ -48,8 +48,8 @@ export function MultiAddressOutput({
 							<MemoizedSummaryCard
 								key={addr.id}
 								addressIdentifier={addr}
-								onRemove={() => onRemoveAddress(addr.id)}
-								onSelect={() => onSelectAddress(addr)}
+								onRemove={onRemoveAddress}
+								onSelect={onSelectAddress}
 								isAnyModalOpen={isAnyModalOpen}
 							/>
 						))}

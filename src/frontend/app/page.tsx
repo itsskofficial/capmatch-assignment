@@ -88,17 +88,14 @@ export default function HomePage() {
 	);
 
 	const handleRemoveAddress = useCallback(
-		(id: string) => {
-			const addressToRemove = addresses.find((addr) => addr.id === id);
-			if (addressToRemove) {
-				// Invalidate the specific query for this address when it's removed
-				queryClient.invalidateQueries({
-					queryKey: ["marketData", "detail", addressToRemove.value],
-				});
-			}
-			removeAddress(id);
+		(address: AddressIdentifier) => {
+			// Invalidate the specific query for this address when it's removed
+			queryClient.invalidateQueries({
+				queryKey: ["marketData", "detail", address.value],
+			});
+			removeAddress(address.id);
 		},
-		[addresses, removeAddress, queryClient]
+		[removeAddress, queryClient]
 	);
 
 	const handleSelectAddress = useCallback(

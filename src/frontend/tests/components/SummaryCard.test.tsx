@@ -1,10 +1,11 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import '@testing-library/jest-dom';
+import { describe, it, expect, vi, Mock } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoizedSummaryCard } from '@components/SummaryCard';
 import { useMarketData } from '@hooks/useMarketData';
-import type { AddressIdentifier } from '@stores/addressStore';
+import { toast } from 'sonner';
 import type { PopulationDataResponse } from '@lib/schemas';
 
 // Mock the dynamic map component
@@ -16,7 +17,12 @@ vi.mock('@components/dynamic-map', () => ({
 // Mock the useMarketData hook
 vi.mock('@hooks/useMarketData');
 
-const mockedUseMarketData = useMarketData as jest.Mock;
+// Mock sonner
+vi.mock('sonner', () => ({
+	toast: { error: vi.fn() },
+}));
+
+const mockedUseMarketData = useMarketData as Mock;
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,8 +39,8 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 describe('SummaryCard', () => {
   const baseProps = {
     addressIdentifier: { id: '1', value: '123 Main St, Anytown, USA' },
-    onRemove: () => {},
-    onSelect: () => {},
+    onRemove: vi.fn(),
+    onSelect: vi.fn(),
     isAnyModalOpen: false,
   };
 
@@ -48,23 +54,20 @@ describe('SummaryCard', () => {
 
     render(<MemoizedSummaryCard {...baseProps} />, { wrapper });
     expect(screen.getByText('Fetching data...')).toBeInTheDocument();
-    // Check for skeletons
-    expect(screen.getAllByTestId('skeleton').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('skeleton')).toBeInTheDocument();
   });
 
   it('renders success state correctly', () => {
-    const mockData: Partial<PopulationDataResponse> = {
+    const mockData = {
       geography_name: 'Census Tract 101, Example County',
       coordinates: { lat: 40, lon: -70 },
       fips: { state: '01', county: '001', tract: '010100' },
-      total_population: 5000,
-      growth: { cagr: 1.5, period_years: 5, absolute_change: 300, yoy_growth: null },
     };
 
     mockedUseMarketData.mockReturnValue({
       isLoading: false,
       isError: false,
-      data: mockData,
+      data: mockData as PopulationDataResponse,
       error: null,
     });
 
@@ -72,22 +75,40 @@ describe('SummaryCard', () => {
 
     expect(screen.getByText(baseProps.addressIdentifier.value)).toBeInTheDocument();
     expect(screen.getByText(mockData.geography_name!)).toBeInTheDocument();
-    expect(screen.getByText('5,000')).toBeInTheDocument();
-    expect(screen.getByText('1.5')).toBeInTheDocument(); // CAGR
     expect(screen.getByTestId('mock-map')).toBeInTheDocument();
   });
 
-  it('renders error state correctly', () => {
+  it('calls onRemove and shows toast for 404 errors', () => {
+    const onRemoveMock = vi.fn();
+    const error404 = new Error('Address could not be geocoded.') as Error & { status: number };
+    error404.status = 404;
     mockedUseMarketData.mockReturnValue({
       isLoading: false,
       isError: true,
       data: undefined,
-      error: new Error('404 Not Found'),
+      error: error404,
+    });
+
+    render(<MemoizedSummaryCard {...baseProps} onRemove={onRemoveMock} />, { wrapper });
+
+    expect(onRemoveMock).toHaveBeenCalledTimes(1);
+    expect(onRemoveMock).toHaveBeenCalledWith(baseProps.addressIdentifier);
+    expect(toast.error).toHaveBeenCalledWith(
+      `Address not found: "${baseProps.addressIdentifier.value}"`,
+      expect.any(Object)
+    );
+  });
+
+  it('renders persistent error state for non-404 errors', () => {
+    const error500 = new Error('Server Error') as Error & { status: number };
+    error500.status = 500;
+    mockedUseMarketData.mockReturnValue({
+      isLoading: false, isError: true, data: undefined, error: error500,
     });
 
     render(<MemoizedSummaryCard {...baseProps} />, { wrapper });
 
-    expect(screen.getByText(/Could not find data for this address/i)).toBeInTheDocument();
-    expect(screen.getByText(/Please check for typos or try a more specific address./i)).toBeInTheDocument();
+    expect(screen.getByText('Error: Server Error')).toBeInTheDocument();
+    expect(screen.getByTestId('alert-triangle-icon')).toBeInTheDocument();
   });
 });

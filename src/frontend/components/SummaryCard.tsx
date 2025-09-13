@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { XIcon, Loader2, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@components/ui/button";
 import { Card, CardContent } from "@components/ui/card";
 import { Skeleton } from "@components/ui/skeleton";
@@ -10,8 +11,8 @@ import type { AddressIdentifier } from "@stores/addressStore";
 
 interface SummaryCardProps {
 	addressIdentifier: AddressIdentifier;
-	onRemove: () => void;
-	onSelect: () => void;
+	onRemove: (address: AddressIdentifier) => void;
+	onSelect: (address: AddressIdentifier) => void;
 	isAnyModalOpen: boolean;
 }
 
@@ -25,6 +26,17 @@ export function SummaryCard({
 		addressIdentifier.value
 	);
 
+	useEffect(() => {
+		const typedError = error as Error & { status?: number };
+		if (isError && typedError?.status === 404) {
+			toast.error(`Address not found: "${addressIdentifier.value}"`, {
+				description:
+					"The address could not be geocoded. It has been removed from your list.",
+			});
+			onRemove(addressIdentifier);
+		}
+	}, [isError, error, addressIdentifier, onRemove]);
+
 	const renderStatus = () => {
 		if (isLoading) {
 			return (
@@ -34,13 +46,14 @@ export function SummaryCard({
 				</div>
 			);
 		}
-		if (isError) {
+		const typedError = error as Error & { status?: number };
+		if (isError && typedError?.status !== 404) {
 			return (
 				<p
 					className="truncate text-sm text-red-500 dark:text-red-400"
 					title={error.message}
 				>
-					Error: {error.message}
+					Error: {typedError.message}
 				</p>
 			);
 		}
@@ -60,7 +73,7 @@ export function SummaryCard({
 				"group relative transition-all hover:shadow-md overflow-hidden p-0 gap-0",
 				data && "cursor-pointer"
 			)}
-			onClick={data ? onSelect : undefined}
+			onClick={data ? () => onSelect(addressIdentifier) : undefined}
 		>
 			<Button
 				variant="ghost"
@@ -68,7 +81,7 @@ export function SummaryCard({
 				className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 z-10 bg-background/50 hover:bg-background/80"
 				onClick={(e) => {
 					e.stopPropagation();
-					onRemove();
+					onRemove(addressIdentifier);
 				}}
 			>
 				<XIcon className="h-4 w-4" />
@@ -77,9 +90,12 @@ export function SummaryCard({
 				{(isLoading || (isAnyModalOpen && data)) && (
 					<Skeleton className="h-full w-full rounded-none" />
 				)}
-				{isError && (
+				{isError && (error as { status?: number })?.status !== 404 && (
 					<div className="flex h-full w-full items-center justify-center bg-destructive/10">
-						<AlertTriangle className="h-8 w-8 text-destructive" />
+						<AlertTriangle
+							data-testid="alert-triangle-icon"
+							className="h-8 w-8 text-destructive"
+						/>
 					</div>
 				)}
 				{data && !isAnyModalOpen && (

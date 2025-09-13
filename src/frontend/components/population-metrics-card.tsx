@@ -74,15 +74,33 @@ const StatItem = ({
 	className,
 	children,
 	tooltip,
+	level,
 }: {
 	icon: React.ElementType;
 	label: string;
-	value: React.ReactNode;
+	value:
+		| React.ReactNode
+		| {
+				value?: React.ReactNode;
+				relative_moe?: number | null;
+		  };
 	unit?: React.ReactNode;
 	className?: string;
 	children?: React.ReactNode;
 	tooltip?: React.ReactNode;
+	level?: "tract" | "county";
 }) => {
+	const valueWithMoe =
+		value && typeof value === "object" && "value" in value
+			? (value as {
+					value: React.ReactNode;
+					relative_moe?: number | null;
+			  })
+			: null;
+
+	const displayValue = valueWithMoe ? valueWithMoe.value : value;
+	const relativeMoe = valueWithMoe ? valueWithMoe.relative_moe : null;
+
 	const content = (
 		<div className="flex items-start space-x-3">
 			<div className="bg-muted rounded-md p-2">
@@ -91,8 +109,13 @@ const StatItem = ({
 			<div>
 				<p className="text-sm text-muted-foreground">{label}</p>
 				<p className={cn("text-lg font-semibold", className)}>
-					{value ?? "N/A"}
-					{value != null && unit && (
+					{displayValue?.toLocaleString() ?? "N/A"}
+					{relativeMoe != null && (
+						<span className="text-xs font-normal text-muted-foreground ml-1.5">
+							[±{relativeMoe.toFixed(1)}%]
+						</span>
+					)}
+					{displayValue != null && unit && (
 						<span className="text-sm font-normal text-muted-foreground ml-1">
 							{unit}
 						</span>
@@ -102,14 +125,22 @@ const StatItem = ({
 			</div>
 		</div>
 	);
-	if (!tooltip) return content;
+
+	if (!tooltip && !level) return content;
+
+	const tooltipContent = (
+		<>
+			{tooltip && <p className="max-w-xs">{tooltip}</p>}
+			{level && <p className="mt-2 text-xs italic">Data Level: {level}</p>}
+		</>
+	);
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<div className="cursor-help">{content}</div>
 			</TooltipTrigger>
 			<TooltipContent>
-				<p className="max-w-xs">{tooltip}</p>
+				{tooltipContent}
 			</TooltipContent>
 		</Tooltip>
 	);
@@ -131,19 +162,19 @@ const handleExportToCSV = (data: PopulationDataResponse) => {
 		"Data Year": data.data_year,
 		Latitude: data.coordinates.lat,
 		Longitude: data.coordinates.lon,
-		"Total Population": data.total_population,
-		"Median Age": data.median_age,
+		"Total Population": data.total_population.value,
+		"Median Age": data.median_age?.value,
 		"5-Yr CAGR (%)": data.growth.cagr,
 		"Absolute Population Change (5-Yr)": data.growth.absolute_change,
 		"Population Density (per sq mi)":
 			data.population_density.people_per_sq_mile,
-		"Median Household Income": data.demographics.median_household_income,
+		"Median Household Income": data.demographics.median_household_income?.value,
 		"Percent with Bachelor's Degree or Higher":
 			data.demographics.percent_bachelors_or_higher,
-		"Average Household Size": data.demographics.avg_household_size,
+		"Average Household Size": data.demographics.avg_household_size?.value,
 		"Percent Renter Occupied": data.housing.percent_renter_occupied,
-		"Median Home Value": data.housing.median_home_value,
-		"Median Gross Rent": data.housing.median_gross_rent,
+		"Median Home Value": data.housing.median_home_value?.value,
+		"Median Gross Rent": data.housing.median_gross_rent?.value,
 		"Walk Score": data.walkability?.walk_score,
 		"Transit Score": data.walkability?.transit_score,
 	};
@@ -239,10 +270,10 @@ export function PopulationMetricsCard({
 		sex_distribution,
 	} = data;
 	const ageData = [
-		{ name: "Under 18", value: data.age_distribution.under_18 },
-		{ name: "18-34", value: data.age_distribution._18_to_34 },
-		{ name: "35-64", value: data.age_distribution._35_to_64 },
-		{ name: "65+", value: data.age_distribution.over_65 },
+		{ name: "Under 18", value: data.age_distribution.under_18.value },
+		{ name: "18-34", value: data.age_distribution._18_to_34.value },
+		{ name: "35-64", value: data.age_distribution._35_to_64.value },
+		{ name: "65+", value: data.age_distribution.over_65.value },
 	];
 	const householdData = demographics.household_composition
 		? [
@@ -313,8 +344,8 @@ export function PopulationMetricsCard({
 		sex_distribution.male != null &&
 		sex_distribution.female != null
 			? [
-					{ name: "Male", value: sex_distribution.male },
-					{ name: "Female", value: sex_distribution.female },
+					{ name: "Male", value: sex_distribution.male.value },
+					{ name: "Female", value: sex_distribution.female.value },
 			  ]
 			: [];
 	const TENURE_COLORS = ["var(--chart-1)", "var(--chart-5)"];
@@ -440,8 +471,9 @@ export function PopulationMetricsCard({
 								<StatItem
 									icon={Users}
 									label="Population"
-									value={data.total_population.toLocaleString()}
+									value={data.total_population}
 									tooltip={`The total number of residents in the census tract. Source: U.S. Census Bureau, ${data.data_year} American Community Survey (ACS) 5-Year Estimates, Table B01003. Includes projections based on county-level trends.`}
+									level="tract"
 								/>
 								<StatItem
 									icon={
@@ -454,6 +486,7 @@ export function PopulationMetricsCard({
 									unit="%"
 									className={growthColor}
 									tooltip={`Compound Annual Growth Rate. This is the average annual growth rate of the tract's population over the past ${growth.period_years} years. Derived from historical ACS 5-Year population data.`}
+									level="tract"
 								>
 									{growth.absolute_change != null && (
 										<p className="text-xs text-muted-foreground">
@@ -472,6 +505,7 @@ export function PopulationMetricsCard({
 										{ maximumFractionDigits: 1 }
 									)}
 									tooltip={`Population per square mile. Calculated by dividing the total population by the land area of the census tract. Land area is from the U.S. Census Bureau's GeoInfo Data (${data.data_year}).`}
+									level="tract"
 									unit={
 										<>
 											/mi²{" "}
@@ -511,6 +545,7 @@ export function PopulationMetricsCard({
 									label="Median Age"
 									value={data.median_age}
 									tooltip={`The median age of all residents in the census tract. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B01002.`}
+									level="tract"
 								/>
 							</div>
 							<div>
@@ -612,21 +647,22 @@ export function PopulationMetricsCard({
 								<StatItem
 									icon={DollarSign}
 									label="Median Income"
-									value={demographics
-											.median_household_income
-											? `$${demographics.median_household_income.toLocaleString()}`
-											: "N/A"
+									value={
+										demographics.median_household_income && {
+											...demographics.median_household_income,
+											value: `$${demographics.median_household_income.value?.toLocaleString()}`,
+										}
 									}
 									tooltip={`The median household income in the past 12 months (in ${data.data_year} inflation-adjusted dollars). Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B19013.`}
+									level="tract"
 								/>
 								<StatItem
 									icon={GraduationCap}
 									label="Bachelor's+"
-									value={demographics
-											.percent_bachelors_or_higher
-									}
+									value={demographics.percent_bachelors_or_higher}
 									unit="%"
 									tooltip={`The percentage of the population aged 25 and over that holds a bachelor's degree or higher. Derived from U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B15003.`}
+									level="tract"
 								/>
 								<StatItem
 									icon={Users2}
@@ -634,6 +670,7 @@ export function PopulationMetricsCard({
 									value={demographics.avg_household_size}
 									unit="people"
 									tooltip={`The average number of people per household. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25010.`}
+									level="tract"
 								/>
 							</div>
 							<div>
@@ -648,6 +685,7 @@ export function PopulationMetricsCard({
 											The number of people in different age
 											groups within the tract. Source:
 											U.S. Census Bureau, {data.data_year} ACS 5-Year Estimates, Table B01001.
+											Data level: tract.
 										</p>
 									</TooltipContent>
 								</Tooltip>
@@ -807,16 +845,16 @@ export function PopulationMetricsCard({
 					<TabsContent value="economics" className="mt-6">
 						<div className="space-y-8">
 							<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-								<StatItem icon={TrendingDown} label="Poverty Rate" value={economic_context?.poverty_rate} unit="%" tooltip={`Percentage of the population with income in the past 12 months below the poverty level. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Subject Tables, Table S1701.`} />
-								<StatItem icon={Briefcase} label="Labor Force Participation" value={economic_context?.labor_force_participation_rate} unit="%" tooltip={`The percentage of the population aged 16 and over that is in the labor force (either employed or unemployed but looking for work). Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B23025.`} />
-								<StatItem icon={Clock} label="Mean Commute" value={economic_context?.mean_commute_time_minutes?.toFixed(1)} unit="min" tooltip={`The average travel time to work for workers 16 years and over who did not work from home. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Data Profiles, Table DP03.`} />
+								<StatItem icon={TrendingDown} label="Poverty Rate" value={economic_context?.poverty_rate} unit="%" tooltip={`Percentage of the population with income in the past 12 months below the poverty level. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Subject Tables, Table S1701.`} level="tract" />
+								<StatItem icon={Briefcase} label="Labor Force Participation" value={economic_context?.labor_force_participation_rate} unit="%" tooltip={`The percentage of the population aged 16 and over that is in the labor force (either employed or unemployed but looking for work). Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B23025.`} level="tract" />
+								<StatItem icon={Clock} label="Mean Commute" value={economic_context?.mean_commute_time_minutes} unit="min" tooltip={`The average travel time to work for workers 16 years and over who did not work from home. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Data Profiles, Table DP03.`} level="tract" />
 							</div>
 							{migration && (
 								<div>
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<h3 className="text-md font-semibold mb-2 cursor-help w-fit">
-												Migration Drivers (County)
+												Migration Drivers (County Level)
 											</h3>
 										</TooltipTrigger>
 										<TooltipContent>
@@ -926,7 +964,7 @@ export function PopulationMetricsCard({
 									<Tooltip>
 										<TooltipTrigger asChild>
 											<h3 className="text-md font-semibold mb-2 cursor-help w-fit">
-												Natural Increase (County)
+												Natural Increase (County Level)
 											</h3>
 										</TooltipTrigger>
 										<TooltipContent>
@@ -986,33 +1024,36 @@ export function PopulationMetricsCard({
 								<StatItem
 									icon={Home}
 									label="Renter Occupied"
-									value={housing.percent_renter_occupied?.toFixed(1)}
+									value={housing.percent_renter_occupied}
 									unit="%"
 									tooltip={`The percentage of occupied housing units that are renter-occupied. Derived from U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25003.`}
+									level="tract"
 								/>
 								<StatItem
 									icon={Building}
 									label="Median Home Value"
 									value={
-										housing.median_home_value
-											? `$${housing.median_home_value.toLocaleString()}`
-											: "N/A"
+										housing.median_home_value && {
+											...housing.median_home_value,
+											value: `$${housing.median_home_value.value?.toLocaleString()}`,
+										}
 									}
 									tooltip={`The median value of owner-occupied housing units. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25077.`}
+									level="tract"
 								/>
 								<StatItem
 									icon={DollarSign}
 									label="Median Gross Rent"
-									value={
-										housing.median_gross_rent
-											? `$${housing.median_gross_rent.toLocaleString()}`
-											: "N/A"
-									}
+									value={housing.median_gross_rent && {
+										...housing.median_gross_rent,
+										value: `$${housing.median_gross_rent.value?.toLocaleString()}`
+									}}
 									tooltip={`The median gross rent for renter-occupied units. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25064.`}
+									level="tract"
 								/>
-								<StatItem icon={Building} label="Median Year Built" value={housing.median_year_structure_built} tooltip={`The median year in which housing structures in the tract were built. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25035.`} />
-								<StatItem icon={House} label="Overall Vacancy" value={housing.vacancy_rate} unit="%" tooltip={`The percentage of all housing units that are vacant. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25002.`} />
-								<StatItem icon={House} label="Rental Vacancy" value={housing.rental_vacancy_rate} unit="%" tooltip={`The percentage of rental units (occupied + for rent) that are vacant. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Tables B25003 & B25004.`} />
+								<StatItem icon={Building} label="Median Year Built" value={housing.median_year_structure_built} tooltip={`The median year in which housing structures in the tract were built. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25035.`} level="tract" />
+								<StatItem icon={House} label="Overall Vacancy" value={housing.vacancy_rate} unit="%" tooltip={`The percentage of all housing units that are vacant. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25002.`} level="tract" />
+								<StatItem icon={House} label="Rental Vacancy" value={housing.rental_vacancy_rate} unit="%" tooltip={`The percentage of rental units (occupied + for rent) that are vacant. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Tables B25003 & B25004.`} level="tract" />
 
 							</div>
 							<div>

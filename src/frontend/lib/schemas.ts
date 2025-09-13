@@ -7,6 +7,12 @@ export const marketDataRequestSchema = z.object({
 export type MarketDataRequest = z.infer<typeof marketDataRequestSchema>;
 
 // --- API Response Schemas ---
+
+const valueWithMoeSchema = z.object({
+	value: z.union([z.number(), z.null()]).optional(),
+	relative_moe: z.number().nullable().optional(),
+});
+
 const populationTrendPointSchema = z.object({
 	year: z.number(),
 	population: z.number(),
@@ -14,15 +20,15 @@ const populationTrendPointSchema = z.object({
 });
 
 const ageDistributionSchema = z.object({
-	under_18: z.number(),
-	_18_to_34: z.number(),
-	_35_to_64: z.number(),
-	over_65: z.number(),
+	under_18: valueWithMoeSchema,
+	_18_to_34: valueWithMoeSchema,
+	_35_to_64: valueWithMoeSchema,
+	over_65: valueWithMoeSchema,
 });
 
 const sexDistributionSchema = z.object({
-	male: z.number(),
-	female: z.number(),
+	male: valueWithMoeSchema,
+	female: valueWithMoeSchema,
 	percent_male: z.number().nullable(),
 	percent_female: z.number().nullable(),
 });
@@ -46,7 +52,7 @@ const benchmarkDataSchema = z
 
 const householdCompositionSchema = z
 	.object({
-		total_households: z.number().nullable(),
+		total_households: valueWithMoeSchema.nullable(),
 		percent_family_households: z.number().nullable(),
 		percent_married_couple_family: z.number().nullable(),
 		percent_non_family_households: z.number().nullable(),
@@ -66,9 +72,9 @@ const raceAndEthnicitySchema = z
 	.optional();
 
 const demographicsSchema = z.object({
-	median_household_income: z.number().nullable(),
+	median_household_income: valueWithMoeSchema.nullable(),
 	percent_bachelors_or_higher: z.number().nullable(),
-	avg_household_size: z.number().nullable(),
+	avg_household_size: valueWithMoeSchema.nullable(),
 	household_composition: householdCompositionSchema,
 	race_and_ethnicity: raceAndEthnicitySchema,
 });
@@ -77,16 +83,16 @@ const economicContextSchema = z
 	.object({
 		poverty_rate: z.number().nullable(),
 		labor_force_participation_rate: z.number().nullable(),
-		mean_commute_time_minutes: z.number().nullable(),
+		mean_commute_time_minutes: valueWithMoeSchema.nullable(),
 	})
 	.nullable()
 	.optional();
 
 const housingMetricsSchema = z.object({
 	percent_renter_occupied: z.number().nullable(),
-	median_home_value: z.number().nullable(),
-	median_gross_rent: z.number().nullable(),
-	median_year_structure_built: z.number().nullable(),
+	median_home_value: valueWithMoeSchema.nullable(),
+	median_gross_rent: valueWithMoeSchema.nullable(),
+	median_year_structure_built: valueWithMoeSchema.nullable(),
 	vacancy_rate: z.number().nullable(),
 	rental_vacancy_rate: z.number().nullable(),
 	homeowner_vacancy_rate: z.number().nullable(),
@@ -153,8 +159,8 @@ export const populationDataResponseSchema = z.object({
 	fips: fipsCodeSchema, // <-- UPDATED
 	coordinates: coordinatesSchema,
 	tract_area_sq_meters: z.number(),
-	total_population: z.number(),
-	median_age: z.number().nullable(),
+	total_population: valueWithMoeSchema,
+	median_age: valueWithMoeSchema.nullable(),
 	growth: growthMetricsSchema,
 	migration: migrationDataSchema,
 	natural_increase: naturalIncreaseDataSchema,

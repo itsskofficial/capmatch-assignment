@@ -18,7 +18,7 @@ import { AddressAutocompleteInput } from "./address-autocomplete-input";
 interface MultiAddressInputProps {
 	onAddAddress: (address: string) => void; // The prop now just takes a string
 	addresses: AddressIdentifier[];
-	onRemoveAddress: (id: string) => void;
+	onRemoveAddress: (address: AddressIdentifier) => void;
 	cachedAddresses: string[];
 	onRemoveFromCache: (address: string) => void;
 }
@@ -74,9 +74,7 @@ export function MultiAddressInput({
 										variant="ghost"
 										size="icon"
 										className="h-6 w-6 shrink-0"
-										onClick={() =>
-											onRemoveAddress(address.id)
-										}
+										onClick={() => onRemoveAddress(address)}
 									>
 										<XIcon className="h-4 w-4" />
 									</Button>

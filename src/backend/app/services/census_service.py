@@ -7,9 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
 from app.schemas.population import (
-    PopulationDataResponse, WalkabilityScores, BenchmarkData, PopulationTrendPoint,
-    MigrationData, NaturalIncreaseData, PopulationDensity, AgeDistribution,
-    SexDistribution, EconomicContext, Coordinates
+    PopulationDataResponse, WalkabilityScores, BenchmarkData, PopulationTrendPoint, MigrationData, NaturalIncreaseData, PopulationDensity, Coordinates
 )
 from app.services.cache_manager import CacheManager
 from app.services.geocoding_service import GeocodingService
@@ -36,6 +34,15 @@ ACS_VARS = {
 }
 SUBJECT_VARS = {"S1701_C03_001E": "poverty_rate_percent"}
 PROFILE_VARS = {"DP03_0025E": "mean_commute_time"}
+
+def _expand_vars_with_moe(var_dict: Dict[str, str]) -> List[str]:
+    """Expands a dict of estimate variables to include margin of error variables."""
+    all_vars = []
+    for var_e in var_dict.keys():
+        all_vars.append(var_e)
+        if var_e.endswith("E"):
+            all_vars.append(var_e[:-1] + "M")
+    return all_vars
 
 class CensusService:
     def __init__(
@@ -71,9 +78,9 @@ class CensusService:
             )
 
         tasks = {
-            "latest_year_data": self.api_client.fetch_large_acs_dataset(fips, LATEST_ACS_YEAR, 'tract', list(ACS_VARS.keys())),
-            "subject_data": self.api_client.fetch_acs_data(fips, LATEST_ACS_YEAR, 'tract', list(SUBJECT_VARS.keys()), endpoint="acs/acs5/subject"),
-            "profile_data": self.api_client.fetch_acs_data(fips, LATEST_ACS_YEAR, 'tract', list(PROFILE_VARS.keys()), endpoint="acs/acs5/profile"),
+            "latest_year_data": self.api_client.fetch_large_acs_dataset(fips, LATEST_ACS_YEAR, 'tract', _expand_vars_with_moe(ACS_VARS)),
+            "subject_data": self.api_client.fetch_acs_data(fips, LATEST_ACS_YEAR, 'tract', _expand_vars_with_moe(SUBJECT_VARS), endpoint="acs/acs5/subject"),
+            "profile_data": self.api_client.fetch_acs_data(fips, LATEST_ACS_YEAR, 'tract', _expand_vars_with_moe(PROFILE_VARS), endpoint="acs/acs5/profile"),
             "tract_trend": fetch_historical_trend('tract', historical_years),
             "county_trend": fetch_historical_trend('county', historical_years),
             "county_drivers": self.api_client.fetch_pep_county_components(fips),
@@ -135,37 +142,17 @@ class CensusService:
         
         population_density = PopulationDensity(people_per_sq_mile=current_density, change_over_period=density_change)
 
-        # Age and Sex Distribution
-        age_distribution = AgeDistribution(
-            under_18=sum(acs_data.get(k, 0) or 0 for k in ["B01001_003E", "B01001_004E", "B01001_005E", "B01001_006E", "B01001_027E", "B01001_028E", "B01001_029E", "B01001_030E"]),
-            _18_to_34=sum(acs_data.get(k, 0) or 0 for k in ["B01001_007E", "B01001_008E", "B01001_009E", "B01001_010E", "B01001_011E", "B01001_012E", "B01001_031E", "B01001_032E", "B01001_033E", "B01001_034E", "B01001_035E", "B01001_036E"]),
-            _35_to_64=sum(acs_data.get(k, 0) or 0 for k in ["B01001_013E", "B01001_014E", "B01001_015E", "B01001_016E", "B01001_017E", "B01001_018E", "B01001_019E", "B01001_037E", "B01001_038E", "B01001_039E", "B01001_040E", "B01001_041E", "B01001_042E", "B01001_043E"]),
-            over_65=sum(acs_data.get(k, 0) or 0 for k in ["B01001_020E", "B01001_021E", "B01001_022E", "B01001_023E", "B01001_024E", "B01001_025E", "B01001_044E", "B01001_045E", "B01001_046E", "B01001_047E", "B01001_048E", "B01001_049E"])
-        )
-        male_total, female_total = acs_data.get("B01001_002E", 0) or 0, acs_data.get("B01001_026E", 0) or 0
-        sex_distribution = SexDistribution(
-            male=male_total, female=female_total,
-            percent_male=round((male_total / (male_total + female_total)) * 100, 1) if (male_total + female_total) > 0 else None,
-            percent_female=round((female_total / (male_total + female_total)) * 100, 1) if (male_total + female_total) > 0 else None
-        )
-
-        # Economic Context
-        lf_total_pop, in_labor_force = acs_data.get("B23025_001E", 0) or 0, acs_data.get("B23025_002E", 0) or 0
-        economic_context = EconomicContext(
-            poverty_rate=task_results["subject_data"].get("S1701_C03_001E") if task_results["subject_data"] else None,
-            labor_force_participation_rate=round((in_labor_force / lf_total_pop) * 100, 1) if lf_total_pop > 0 else None,
-            mean_commute_time_minutes=task_results["profile_data"].get("DP03_0025E") if task_results["profile_data"] else None
-        )
-
         response_data = self.processor.format_response_data(
             address=address, geo_level='tract', coordinates=coords, aland=aland,
             fips=fips, # <-- UPDATED
-            acs_data=acs_data, trend=tract_trend,
+            acs_data=acs_data,
+            subject_data=task_results["subject_data"],
+            profile_data=task_results["profile_data"],
+            trend=tract_trend,
             projection=self.processor.project_tract_population(acs_data, county_trend),
             benchmarks=BenchmarkData(county_trend=county_trend),
             walkability=walkability, migration=migration_data, natural_increase=natural_increase_data,
-            population_density=population_density, age_distribution=age_distribution,
-            sex_distribution=sex_distribution, economic_context=economic_context
+            population_density=population_density,
         )
 
         await self.cache.set_cached_response(address, response_data, db)

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Union
 
 # --- Request and Foundational Schemas (Largely Unchanged) ---
 class MarketDataRequest(BaseModel):
@@ -36,6 +36,11 @@ class FipsCode(BaseModel):
     state: str
     county: str
     tract: str
+
+# --- NEW: Schema for a metric with Margin of Error ---
+class ValueWithMoe(BaseModel):
+    value: Optional[Union[int, float]] = None
+    relative_moe: Optional[float] = Field(None, description="Relative Margin of Error (%)")
 
 # --- Core Data Schemas (Modified & New) ---
 class GrowthMetrics(BaseModel):
@@ -75,23 +80,23 @@ class PopulationTrend(BaseModel):
 
 class AgeDistribution(BaseModel):
     """Schema for the age distribution data."""
-    under_18: int
-    age_18_to_34: int = Field(..., alias="_18_to_34")
-    age_35_to_64: int = Field(..., alias="_35_to_64")
-    over_65: int
+    under_18: ValueWithMoe
+    age_18_to_34: ValueWithMoe = Field(..., alias="_18_to_34")
+    age_35_to_64: ValueWithMoe = Field(..., alias="_35_to_64")
+    over_65: ValueWithMoe
     class Config:
         populate_by_name = True
 
 
 class SexDistribution(BaseModel):
-    male: int
-    female: int
+    male: ValueWithMoe
+    female: ValueWithMoe
     percent_male: Optional[float] = None
     percent_female: Optional[float] = None
 
 class HouseholdComposition(BaseModel):
     """Metrics related to household types."""
-    total_households: Optional[int] = None
+    total_households: Optional[ValueWithMoe] = None
     percent_family_households: Optional[float] = None
     percent_married_couple_family: Optional[float] = None
     percent_non_family_households: Optional[float] = None
@@ -106,9 +111,9 @@ class RaceAndEthnicity(BaseModel):
 
 class Demographics(BaseModel):
     """Socio-economic and household composition metrics."""
-    median_household_income: Optional[int] = None
+    median_household_income: Optional[ValueWithMoe] = None
     percent_bachelors_or_higher: Optional[float] = None
-    avg_household_size: Optional[float] = None
+    avg_household_size: Optional[ValueWithMoe] = None
     household_composition: Optional[HouseholdComposition] = None
     race_and_ethnicity: Optional[RaceAndEthnicity] = None
 
@@ -116,14 +121,14 @@ class EconomicContext(BaseModel):
     """Metrics related to the economic health and lifestyle of the area."""
     poverty_rate: Optional[float] = None
     labor_force_participation_rate: Optional[float] = None
-    mean_commute_time_minutes: Optional[float] = None
+    mean_commute_time_minutes: Optional[ValueWithMoe] = None
 
 class HousingMetrics(BaseModel):
     """Housing market and tenure metrics."""
     percent_renter_occupied: Optional[float] = None
-    median_home_value: Optional[int] = None
-    median_gross_rent: Optional[int] = None
-    median_year_structure_built: Optional[int] = None
+    median_home_value: Optional[ValueWithMoe] = None
+    median_gross_rent: Optional[ValueWithMoe] = None
+    median_year_structure_built: Optional[ValueWithMoe] = None
     vacancy_rate: Optional[float] = None
     rental_vacancy_rate: Optional[float] = None
     homeowner_vacancy_rate: Optional[float] = None
@@ -142,8 +147,8 @@ class PopulationDataResponse(BaseModel):
     coordinates: Coordinates
 
     # Foundational Metrics
-    total_population: int
-    median_age: Optional[float]
+    total_population: ValueWithMoe
+    median_age: Optional[ValueWithMoe]
 
     # Growth Metrics
     growth: GrowthMetrics
