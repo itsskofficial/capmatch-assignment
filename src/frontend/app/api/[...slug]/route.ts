@@ -37,7 +37,15 @@ async function handler(req: NextRequest) {
 					: undefined,
 		});
 
-		// 4. Return the response from the backend, including status code and body.
+		// --- FIX IS HERE ---
+		// If the response is 204 No Content, there is no body to parse.
+		// Return a new response with the same status but a null body.
+		if (apiResponse.status === 204) {
+			return new NextResponse(null, { status: 204 });
+		}
+		// --- END OF FIX ---
+
+		// For all other responses, we expect a JSON body.
 		const responseBody = await apiResponse.json();
 		return NextResponse.json(responseBody, {
 			status: apiResponse.status,

@@ -9,7 +9,7 @@ from httpx import AsyncClient, HTTPStatusError
 from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from loguru import logger
 
 from app.core.config import settings
@@ -176,6 +176,42 @@ class CensusService:
         logger.success("Successfully saved data to cache and committed to DB.")
 
         return response_data
+
+    async def get_all_cached_addresses(self, db: AsyncSession) -> List[str]:
+        """Retrieves all unique search_address values from the cache."""
+        logger.info("Fetching all cached addresses from the database.")
+        
+        # Define the column expression and give it a label (an alias).
+        address_column = PopulationCache.response_data['search_address'].as_string().label("search_address")
+        
+        # Use the labeled column in both the select and order_by clauses.
+        stmt = select(address_column) \
+            .distinct() \
+            .order_by(address_column)
+        
+        result = await db.execute(stmt)
+        addresses = result.scalars().all()
+        
+        logger.success(f"Found {len(addresses)} cached addresses.")
+        return addresses
+
+    async def delete_cache_for_address(self, address: str, db: AsyncSession):
+        """Deletes a cache entry for a specific address."""
+        logger.info(f"Attempting to delete cache for address: '{address}'")
+        normalized_address = re.sub(r'\s+', ' ', address).strip().lower()
+        # This cache key generation logic MUST match get_market_data_for_address
+        cache_key = f"{normalized_address}|tract|5_year_projected_v3"
+        logger.debug(f"Generated cache key for deletion: {cache_key}")
+
+        stmt = delete(PopulationCache).where(PopulationCache.address_key == cache_key)
+        result = await db.execute(stmt)
+        await db.commit()
+
+        if result.rowcount > 0:
+            logger.success(f"Successfully deleted {result.rowcount} cache entry for key: {cache_key}")
+        else:
+            # This is not an error, the cache entry might have already been deleted or never existed.
+            logger.warning(f"No cache entry found for key '{cache_key}' to delete.")
 
     async def _geocode_address(self, address: str) -> dict:
         """

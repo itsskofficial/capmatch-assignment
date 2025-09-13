@@ -1,8 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { Compass, BarChartHorizontal, AreaChart, Users, Home } from "lucide-react";
+import {
+	Compass,
+	BarChartHorizontal,
+	AreaChart,
+	Users,
+	Home,
+} from "lucide-react";
+import { PopulationMetricsCard } from "@components/population-metrics-card";
 
 import {
 	ResizablePanelGroup,
@@ -24,6 +31,12 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@components/ui/card";
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from "@components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@components/ui/tabs";
 
 import type { AddressEntry } from "@lib/types";
@@ -57,22 +70,53 @@ export default function HomePage() {
 	const [mode, setMode] = useState<Mode>("explore");
 
 	const [addresses, setAddresses] = useState<AddressEntry[]>([]);
+	const [selectedAddress, setSelectedAddress] = useState<AddressEntry | null>(
+		null
+	);
+	const [cachedAddresses, setCachedAddresses] = useState<string[]>([]);
+
+	const fetchCachedAddresses = async () => {
+		try {
+			const response = await fetch("/api/v1/market-data/cache");
+			if (!response.ok) {
+				throw new Error("Failed to fetch cached addresses");
+			}
+			const data: string[] = await response.json();
+			setCachedAddresses(data);
+		} catch (error) {
+			console.error(error);
+			// Optionally, show an error to the user
+		}
+	};
+
+	// Fetch cached addresses on initial component mount
+	useEffect(() => {
+		fetchCachedAddresses();
+	}, []);
 
 	const addAddress = (data: AddAddressSchema) => {
+		// Prevent adding an address that's already in the list (either fetched or loading)
+		if (
+			addresses.some(
+				(addr) =>
+					addr.value.trim().toLowerCase() ===
+					data.address.trim().toLowerCase()
+			)
+		)
+			return;
+
 		const newAddress: AddressEntry = {
 			id: uuidv4(),
 			value: data.address,
 			status: "loading",
 		};
-
-		setAddresses((prev) => [
-			...prev,
-			newAddress,
-		]);
+		setAddresses((prev) => [...prev, newAddress]);
 
 		const fetchAndSet = async () => {
 			try {
-				const fetchedData = await fetchPopulationData({ address: newAddress.value });
+				const fetchedData = await fetchPopulationData({
+					address: newAddress.value,
+				});
 				setAddresses((prev) =>
 					prev.map((a) =>
 						a.id === newAddress.id
@@ -80,6 +124,8 @@ export default function HomePage() {
 							: a
 					)
 				);
+				// Refresh the cache list from the DB after a successful fetch
+				fetchCachedAddresses();
 			} catch (error: unknown) {
 				const errorMessage =
 					error instanceof Error
@@ -100,6 +146,24 @@ export default function HomePage() {
 
 	const removeAddress = (id: string) => {
 		setAddresses((prev) => prev.filter((addr) => addr.id !== id));
+	};
+
+	const removeAddressFromCache = async (address: string) => {
+		try {
+			const response = await fetch("/api/v1/market-data/cache", {
+				method: "DELETE",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ address }),
+			});
+
+			if (!response.ok) {
+				throw new Error("Failed to delete address from server cache.");
+			}
+			// Refresh the cache list from the DB after a successful deletion
+			fetchCachedAddresses();
+		} catch (error) {
+			console.error("Error deleting address from server cache:", error);
+		}
 	};
 
 	const dockItems = [
@@ -138,14 +202,23 @@ export default function HomePage() {
 				/>
 			</aside>
 
-			<div className="w-full pl-24">
-				<ResizablePanelGroup direction="horizontal" className="w-full">
-					<ResizablePanel defaultSize={65} minSize={40}>
-						<main className="h-screen overflow-auto p-4 md:p-6 lg:p-8">
+			<div className="w-full sm:pl-24">
+				<ResizablePanelGroup
+					direction="horizontal"
+					className="w-full flex-col md:flex-row min-h-screen"
+				>
+					<ResizablePanel
+						defaultSize={65}
+						minSize={40}
+						className="min-h-[50vh] md:min-h-0"
+					>
+						<main className="h-full overflow-auto p-4 md:p-6 lg:p-8">
 							{mode === "explore" && (
 								<MultiAddressOutput
 									addresses={addresses}
 									onRemoveAddress={removeAddress}
+									onSelectAddress={setSelectedAddress}
+									isAnyModalOpen={!!selectedAddress}
 								/>
 							)}
 							{mode === "compare" && (
@@ -159,7 +232,10 @@ export default function HomePage() {
 										</CardDescription>
 									</CardHeader>
 									<CardContent className="flex-grow">
-										<Tabs defaultValue="growth" className="h-full flex flex-col">
+										<Tabs
+											defaultValue="growth"
+											className="h-full flex flex-col"
+										>
 											<TabsList className="grid w-full grid-cols-3">
 												<TabsTrigger value="growth">
 													<AreaChart className="mr-2 h-4 w-4" />
@@ -174,21 +250,36 @@ export default function HomePage() {
 													Housing
 												</TabsTrigger>
 											</TabsList>
-											<TabsContent value="growth" className="flex-grow mt-4">
+											<TabsContent
+												value="growth"
+												className="flex-grow mt-4"
+											>
 												<ComparisonChart
-													addresses={successfulAddresses}
+													addresses={
+														successfulAddresses
+													}
 													metric="population_trend"
 												/>
 											</TabsContent>
-											<TabsContent value="demographics" className="flex-grow mt-4">
+											<TabsContent
+												value="demographics"
+												className="flex-grow mt-4"
+											>
 												<ComparisonChart
-													addresses={successfulAddresses}
+													addresses={
+														successfulAddresses
+													}
 													metric="demographics"
 												/>
 											</TabsContent>
-											<TabsContent value="housing" className="flex-grow mt-4">
+											<TabsContent
+												value="housing"
+												className="flex-grow mt-4"
+											>
 												<ComparisonChart
-													addresses={successfulAddresses}
+													addresses={
+														successfulAddresses
+													}
 													metric="housing"
 												/>
 											</TabsContent>
@@ -198,20 +289,24 @@ export default function HomePage() {
 							)}
 						</main>
 					</ResizablePanel>
-					<ResizableHandle withHandle />
+					<ResizableHandle withHandle className="hidden md:flex" />
 					<ResizablePanel
 						defaultSize={35}
 						minSize={25}
 						maxSize={40}
-						className="bg-background"
+						className="bg-background min-h-[50vh] md:min-h-0"
 					>
-						<aside className="h-screen">
+						<aside className="h-full">
 							<ScrollArea className="h-full">
 								<div className="p-4 md:p-6 lg:p-8">
 									<MultiAddressInput
 										onAddAddress={addAddress}
 										addresses={addresses}
 										onRemoveAddress={removeAddress}
+										cachedAddresses={cachedAddresses}
+										onRemoveFromCache={
+											removeAddressFromCache
+										}
 									/>
 								</div>
 							</ScrollArea>
@@ -219,6 +314,24 @@ export default function HomePage() {
 					</ResizablePanel>
 				</ResizablePanelGroup>
 			</div>
+			<Dialog
+				open={!!selectedAddress}
+				onOpenChange={() => setSelectedAddress(null)}
+			>
+				<DialogContent className="sm:max-w-7xl w-full h-[90vh] flex flex-col">
+					<DialogHeader>
+						<DialogTitle>{selectedAddress?.value}</DialogTitle>
+					</DialogHeader>
+					<div className="flex-1 overflow-y-auto">
+						<PopulationMetricsCard
+							isLoading={false}
+							isError={false}
+							error={null}
+							data={selectedAddress?.data}
+						/>
+					</div>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

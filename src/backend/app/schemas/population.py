@@ -6,6 +6,10 @@ class MarketDataRequest(BaseModel):
     """Schema for the incoming market data POST request."""
     address: str = Field(..., description="A full U.S. address.")
 
+class CacheDeleteRequest(BaseModel):
+    """Schema for the cache deletion request."""
+    address: str = Field(..., description="The exact address to remove from the cache.")
+
 class PopulationTrendPoint(BaseModel):
     year: int
     population: int

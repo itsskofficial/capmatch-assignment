@@ -1,7 +1,7 @@
 "use client";
 
 import { useForm } from "react-hook-form";
-import { XIcon } from "lucide-react";
+import { XIcon, PlusIcon } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
@@ -15,6 +15,7 @@ import {
 	CardTitle,
 } from "@components/ui/card";
 import { Separator } from "@components/ui/separator";
+import { ScrollArea } from "@components/ui/scroll-area";
 import type { AddressEntry } from "@lib/types";
 
 const addAddressSchema = z.object({
@@ -26,12 +27,16 @@ interface MultiAddressInputProps {
 	onAddAddress: (data: AddAddressSchema) => void;
 	addresses: AddressEntry[];
 	onRemoveAddress: (id: string) => void;
+	cachedAddresses: string[];
+	onRemoveFromCache: (address: string) => void;
 }
 
 export function MultiAddressInput({
 	onAddAddress,
 	addresses,
 	onRemoveAddress,
+	cachedAddresses,
+	onRemoveFromCache,
 }: MultiAddressInputProps) {
 	const form = useForm<AddAddressSchema>({
 		resolver: zodResolver(addAddressSchema),
@@ -41,6 +46,10 @@ export function MultiAddressInput({
 	const handleSubmit = (data: AddAddressSchema) => {
 		onAddAddress(data);
 		form.reset();
+	};
+
+	const handleAddFromCache = (address: string) => {
+		onAddAddress({ address });
 	};
 
 	return (
@@ -77,7 +86,7 @@ export function MultiAddressInput({
 				<CardHeader>
 					<CardTitle>Address List</CardTitle>
 					<CardDescription>
-						Manage the addresses you've added.
+						Manage the addresses you&#39;ve added.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -107,6 +116,60 @@ export function MultiAddressInput({
 					) : (
 						<p className="text-sm text-muted-foreground">
 							No addresses added yet.
+						</p>
+					)}
+				</CardContent>
+			</Card>
+			<Separator />
+			<Card className="border-none shadow-none">
+				<CardHeader>
+					<CardTitle>Cached Addresses</CardTitle>
+					<CardDescription>
+						Previously searched addresses. Click to add or remove
+						from cache.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					{cachedAddresses.length > 0 ? (
+						<ScrollArea className="h-48">
+							<ul className="space-y-2 pr-4">
+								{cachedAddresses.map((address) => (
+									<li
+										key={address}
+										className="group flex items-center justify-between rounded-md border bg-muted/50 p-2 text-sm"
+									>
+										<span className="truncate pr-2">
+											{address}
+										</span>
+										<div className="flex shrink-0 items-center">
+											<Button
+												variant="ghost"
+												size="icon"
+												className="h-6 w-6"
+												onClick={() =>
+													handleAddFromCache(address)
+												}
+											>
+												<PlusIcon className="h-4 w-4" />
+											</Button>
+											<Button
+												variant="ghost"
+												size="icon"
+												className="h-6 w-6 text-destructive/70 hover:text-destructive"
+												onClick={() =>
+													onRemoveFromCache(address)
+												}
+											>
+												<XIcon className="h-4 w-4" />
+											</Button>
+										</div>
+									</li>
+								))}
+							</ul>
+						</ScrollArea>
+					) : (
+						<p className="text-sm text-muted-foreground">
+							No cached addresses found.
 						</p>
 					)}
 				</CardContent>

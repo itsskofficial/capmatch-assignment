@@ -1,18 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { XIcon, List, Loader2, AlertTriangle } from "lucide-react";
 
 import { Button } from "@components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@components/ui/card";
 import { Skeleton } from "@components/ui/skeleton";
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-} from "@components/ui/dialog";
-import { PopulationMetricsCard } from "@components/population-metrics-card";
 import type { AddressEntry } from "@lib/types";
 import { cn } from "@lib/utils";
 import DynamicMap from "@components/dynamic-map";
@@ -108,16 +100,16 @@ function SummaryCard({
 interface MultiAddressOutputProps {
 	addresses: AddressEntry[];
 	onRemoveAddress: (id: string) => void;
+	onSelectAddress: (address: AddressEntry) => void;
+	isAnyModalOpen: boolean;
 }
 
 export function MultiAddressOutput({
 	addresses,
 	onRemoveAddress,
+	onSelectAddress,
+	isAnyModalOpen,
 }: MultiAddressOutputProps) {
-	const [selectedAddress, setSelectedAddress] = useState<AddressEntry | null>(
-		null
-	);
-
 	if (addresses.length === 0) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-8 text-center dark:border-gray-700">
@@ -148,32 +140,13 @@ export function MultiAddressOutput({
 								key={addr.id}
 								address={addr}
 								onRemove={() => onRemoveAddress(addr.id)}
-								onSelect={() => setSelectedAddress(addr)}
-								isAnyModalOpen={!!selectedAddress}
+								onSelect={() => onSelectAddress(addr)}
+								isAnyModalOpen={isAnyModalOpen}
 							/>
 						))}
 					</div>
 				</CardContent>
 			</Card>
-
-			<Dialog
-				open={!!selectedAddress}
-				onOpenChange={() => setSelectedAddress(null)}
-			>
-				<DialogContent className="sm:max-w-7xl w-full">
-					<DialogHeader>
-						<DialogTitle>{selectedAddress?.value}</DialogTitle>
-					</DialogHeader>
-					<div className="mt-4">
-						<PopulationMetricsCard
-							isLoading={false}
-							isError={false}
-							error={null}
-							data={selectedAddress?.data}
-						/>
-					</div>
-				</DialogContent>
-			</Dialog>
 		</div>
 	);
 }

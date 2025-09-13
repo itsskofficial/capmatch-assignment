@@ -16,7 +16,6 @@ import {
 	Bar,
 	XAxis,
 	YAxis,
-	Tooltip,
 	ResponsiveContainer,
 	CartesianGrid,
 	LineChart,
@@ -45,6 +44,12 @@ import {
 import type { PopulationDataResponse } from "@lib/schemas";
 import { cn } from "@lib/utils";
 import DynamicMap from "@components/dynamic-map";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@components/ui/tooltip";
 
 interface PopulationMetricsCardProps {
 	isLoading: boolean;
@@ -60,6 +65,7 @@ const StatItem = ({
 	unit,
 	className,
 	children,
+	tooltip,
 }: {
 	icon: React.ElementType;
 	label: string;
@@ -67,25 +73,43 @@ const StatItem = ({
 	unit?: React.ReactNode;
 	className?: string;
 	children?: React.ReactNode;
-}) => (
-	<div className="flex items-start space-x-3">
-		<div className="bg-muted rounded-md p-2">
-			<Icon className="h-5 w-5 text-muted-foreground" />
+	tooltip?: React.ReactNode;
+}) => {
+	const content = (
+		<div className="flex items-start space-x-3">
+			<div className="bg-muted rounded-md p-2">
+				<Icon className="h-5 w-5 text-muted-foreground" />
+			</div>
+			<div>
+				<p className="text-sm text-muted-foreground">{label}</p>
+				<p className={cn("text-lg font-semibold", className)}>
+					{value ?? "N/A"}
+					{value != null && unit && (
+						<span className="text-sm font-normal text-muted-foreground ml-1">
+							{unit}
+						</span>
+					)}
+				</p>
+				{children}
+			</div>
 		</div>
-		<div>
-			<p className="text-sm text-muted-foreground">{label}</p>
-			<p className={cn("text-lg font-semibold", className)}>
-				{value ?? "N/A"}
-				{value != null && unit && (
-					<span className="text-sm font-normal text-muted-foreground ml-1">
-						{unit}
-					</span>
-				)}
-			</p>
-			{children}
-		</div>
-	</div>
-);
+	);
+
+	if (!tooltip) {
+		return content;
+	}
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<div className="cursor-help">{content}</div>
+			</TooltipTrigger>
+			<TooltipContent>
+				<p className="max-w-xs">{tooltip}</p>
+			</TooltipContent>
+		</Tooltip>
+	);
+};
 
 const formatPopulation = (value: number) =>
 	value >= 1_000_000
@@ -162,8 +186,8 @@ export function PopulationMetricsCard({
 			? [
 					{ name: "Renters", value: tenureValue },
 					{ name: "Owners", value: 100 - tenureValue },
-			  ]
-			: [];
+		  ]
+		: [];
 
 	const sexData =
 		sex_distribution &&
@@ -241,7 +265,8 @@ export function PopulationMetricsCard({
 		: [];
 
 	return (
-		<Card className="w-full">
+		<TooltipProvider>
+			<Card className="w-full">
 			<CardHeader>
 				<CardTitle>
 					Metrics for{" "}
@@ -253,14 +278,12 @@ export function PopulationMetricsCard({
 			</CardHeader>
 			<CardContent className="space-y-6">
 				<Tabs defaultValue="overview">
-					<TabsList className="grid w-full grid-cols-5">
+					<TabsList className="grid w-full grid-cols-3">
 						<TabsTrigger value="overview">Overview</TabsTrigger>
-						<TabsTrigger value="drivers">Drivers</TabsTrigger>
 						<TabsTrigger value="demographics">
-							Demographics
+							Demographics & Drivers
 						</TabsTrigger>
 						<TabsTrigger value="housing">Housing</TabsTrigger>
-						<TabsTrigger value="map">Map View</TabsTrigger>
 					</TabsList>
 
 					<TabsContent value="overview" className="mt-6">
@@ -270,6 +293,7 @@ export function PopulationMetricsCard({
 									icon={Users}
 									label="Population"
 									value={data.total_population.toLocaleString()}
+									tooltip={`The total number of residents in the census tract. Source: U.S. Census Bureau, ${data.data_year} American Community Survey (ACS) 5-Year Estimates, Table B01003. Includes projections based on county-level trends.`}
 								/>
 								<StatItem
 									icon={
@@ -281,6 +305,7 @@ export function PopulationMetricsCard({
 									value={growthMetric}
 									unit="%"
 									className={growthColor}
+									tooltip={`Compound Annual Growth Rate. This is the average annual growth rate of the tract's population over the past ${growth.period_years} years. Derived from historical ACS 5-Year population data.`}
 								>
 									{growth.absolute_change != null && (
 										<p className="text-xs text-muted-foreground">
@@ -298,6 +323,7 @@ export function PopulationMetricsCard({
 										undefined,
 										{ maximumFractionDigits: 1 }
 									)}
+									tooltip={`Population per square mile. Calculated by dividing the total population by the land area of the census tract. Land area is from the U.S. Census Bureau's GeoInfo Data (${data.data_year}).`}
 									unit={
 										<>
 											/mi²{" "}
@@ -324,22 +350,39 @@ export function PopulationMetricsCard({
 									icon={Footprints}
 									label="Walk Score®"
 									value={data.walkability?.walk_score}
+									tooltip="A score from 0-100 that measures the walkability of an address. Higher scores indicate that daily errands do not require a car. Data provided by Walk Score®."
 								/>
 								<StatItem
 									icon={Train}
 									label="Transit Score®"
 									value={data.walkability?.transit_score}
+									tooltip="A score from 0-100 that measures how well an address is served by public transit. Data provided by Walk Score®."
 								/>
 								<StatItem
 									icon={Cake}
 									label="Median Age"
 									value={data.median_age}
+									tooltip={`The median age of all residents in the census tract. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B01002.`}
 								/>
 							</div>
 							<div>
-								<h3 className="text-md font-semibold mb-2">
-									Population Trend & Projection
-								</h3>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<h3 className="text-md font-semibold mb-2 cursor-help w-fit">
+											Population Trend & Projection
+										</h3>
+									</TooltipTrigger>
+									<TooltipContent>
+										<p className="max-w-xs">
+											Historical population data is from
+											ACS 5-Year Estimates. Projections
+											are calculated by applying the
+											county's average historical growth
+											rate to the tract's most recent
+											population figure.
+										</p>
+									</TooltipContent>
+								</Tooltip>
 								<div className="h-64 w-full">
 									<ResponsiveContainer
 										width="100%"
@@ -388,11 +431,125 @@ export function PopulationMetricsCard({
 									</ResponsiveContainer>
 								</div>
 							</div>
+							<div>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<h3 className="text-md font-semibold mb-2 cursor-help w-fit">Map View</h3>
+									</TooltipTrigger>
+									<TooltipContent>The approximate boundary of the census tract is shown in blue.</TooltipContent>
+								</Tooltip>
+								<div className="h-96 w-full rounded-lg overflow-hidden">
+									<DynamicMap lat={data.coordinates.lat} lon={data.coordinates.lon} area={data.tract_area_sq_meters} interactive />
+								</div>
+							</div>
+						</div>
+					</TabsContent>
+
+					<TabsContent value="demographics" className="mt-6">
+						<div className="space-y-8">
+							<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+								<StatItem
+									icon={DollarSign}
+									label="Median Income"
+									value={
+										data.demographics
+											.median_household_income
+											? `$${data.demographics.median_household_income.toLocaleString()}`
+											: "N/A"
+									}
+									tooltip={`The median household income in the past 12 months (in ${data.data_year} inflation-adjusted dollars). Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B19013.`}
+								/>
+								<StatItem
+									icon={GraduationCap}
+									label="Bachelor's+"
+									value={
+										data.demographics
+											.percent_bachelors_or_higher
+									}
+									unit="%"
+									tooltip={`The percentage of the population aged 25 and over that holds a bachelor's degree or higher. Derived from U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B15003.`}
+								/>
+								<StatItem
+									icon={Users2}
+									label="Avg. Household Size"
+									value={data.demographics.avg_household_size}
+									unit="people"
+									tooltip={`The average number of people per household. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25010.`}
+								/>
+							</div>
+							<div>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<h3 className="text-md font-semibold mb-2 cursor-help w-fit">
+											Age Distribution
+										</h3>
+									</TooltipTrigger>
+									<TooltipContent>
+										<p className="max-w-xs">
+											The number of people in different age
+											groups within the tract. Source:
+											U.S. Census Bureau, {data.data_year} ACS 5-Year Estimates, Table B01001.
+										</p>
+									</TooltipContent>
+								</Tooltip>
+								<div className="h-64 w-full">
+									<ResponsiveContainer
+										width="100%"
+										height="100%"
+									>
+										<BarChart
+											data={ageData}
+											layout="vertical"
+											margin={{ left: 10 }}
+										>
+											<CartesianGrid
+												strokeDasharray="3 3"
+												horizontal={false}
+											/>
+											<XAxis
+												type="number"
+												tickFormatter={formatPopulation}
+											/>
+											<YAxis
+												type="category"
+												dataKey="name"
+												width={50}
+												tickLine={false}
+												axisLine={false}
+											/>
+											<Tooltip
+												cursor={{
+													fill: "hsl(var(--muted))",
+												}}
+												formatter={(value: number) =>
+													value.toLocaleString()
+												}
+											/>
+											<Bar
+												dataKey="value"
+												fill="hsl(var(--primary))"
+												radius={[0, 4, 4, 0]}
+											/>
+										</BarChart>
+									</ResponsiveContainer>
+								</div>
+							</div>
 							{sexData.length > 0 && (
 								<div>
-									<h3 className="text-md font-semibold mb-2">
-										Sex Distribution
-									</h3>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<h3 className="text-md font-semibold mb-2 cursor-help w-fit">
+												Sex Distribution
+											</h3>
+										</TooltipTrigger>
+										<TooltipContent>
+											<p className="max-w-xs">
+												The number of male and female residents
+												in the tract. Source: U.S. Census Bureau,
+												{data.data_year} ACS 5-Year Estimates, Table B01001.
+											</p>
+										</TooltipContent>
+									</Tooltip>
 									<div className="h-64 w-full">
 										<ResponsiveContainer
 											width="100%"
@@ -429,16 +586,26 @@ export function PopulationMetricsCard({
 									</div>
 								</div>
 							)}
-						</div>
-					</TabsContent>
-
-					<TabsContent value="drivers" className="mt-6">
-						{migration && natural_increase ? (
-							<div className="space-y-8">
+							{migration && (
 								<div>
-									<h3 className="text-md font-semibold mb-2">
-										Migration Drivers (County)
-									</h3>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<h3 className="text-md font-semibold mb-2 cursor-help w-fit">
+												Migration Drivers (County)
+											</h3>
+										</TooltipTrigger>
+										<TooltipContent>
+											<p className="max-w-xs">
+												Components of population change at
+												the county level. "Inflows" and
+												"Outflows" are from the 2022 ACS
+												5-Year Flows data. "Domestic" and
+												"International" migration are from
+												the 2019 Census Population
+												Estimates Program (PEP).
+											</p>
+										</TooltipContent>
+									</Tooltip>
 									<div className="grid md:grid-cols-2 gap-8 items-center h-64">
 										<div className="h-full w-full">
 											<ResponsiveContainer
@@ -519,10 +686,26 @@ export function PopulationMetricsCard({
 										</div>
 									</div>
 								</div>
+							)}
+							{natural_increase && (
 								<div>
-									<h3 className="text-md font-semibold mb-2">
-										Natural Increase (County)
-									</h3>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<h3 className="text-md font-semibold mb-2 cursor-help w-fit">
+												Natural Increase (County)
+											</h3>
+										</TooltipTrigger>
+										<TooltipContent>
+											<p className="max-w-xs">
+												Components of population change at
+												the county level, showing the
+												difference between births and
+												deaths. Source: 2019 Census
+												Population Estimates Program
+												(PEP).
+											</p>
+										</TooltipContent>
+									</Tooltip>
 									<div className="h-64 w-full">
 										<ResponsiveContainer
 											width="100%"
@@ -558,91 +741,7 @@ export function PopulationMetricsCard({
 										</ResponsiveContainer>
 									</div>
 								</div>
-							</div>
-						) : (
-							<div className="flex h-64 items-center justify-center">
-								<p className="text-muted-foreground">
-									County-level driver data not available.
-								</p>
-							</div>
-						)}
-					</TabsContent>
-
-					<TabsContent value="demographics" className="mt-6">
-						<div className="space-y-8">
-							<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-								<StatItem
-									icon={DollarSign}
-									label="Median Income"
-									value={
-										data.demographics
-											.median_household_income
-											? `$${data.demographics.median_household_income.toLocaleString()}`
-											: "N/A"
-									}
-								/>
-								<StatItem
-									icon={GraduationCap}
-									label="Bachelor's+"
-									value={
-										data.demographics
-											.percent_bachelors_or_higher
-									}
-									unit="%"
-								/>
-								<StatItem
-									icon={Users2}
-									label="Avg. Household Size"
-									value={data.demographics.avg_household_size}
-									unit="people"
-								/>
-							</div>
-							<div>
-								<h3 className="text-md font-semibold mb-2">
-									Age Distribution
-								</h3>
-								<div className="h-64 w-full">
-									<ResponsiveContainer
-										width="100%"
-										height="100%"
-									>
-										<BarChart
-											data={ageData}
-											layout="vertical"
-											margin={{ left: 10 }}
-										>
-											<CartesianGrid
-												strokeDasharray="3 3"
-												horizontal={false}
-											/>
-											<XAxis
-												type="number"
-												tickFormatter={formatPopulation}
-											/>
-											<YAxis
-												type="category"
-												dataKey="name"
-												width={50}
-												tickLine={false}
-												axisLine={false}
-											/>
-											<Tooltip
-												cursor={{
-													fill: "hsl(var(--muted))",
-												}}
-												formatter={(value: number) =>
-													value.toLocaleString()
-												}
-											/>
-											<Bar
-												dataKey="value"
-												fill="hsl(var(--primary))"
-												radius={[0, 4, 4, 0]}
-											/>
-										</BarChart>
-									</ResponsiveContainer>
-								</div>
-							</div>
+							)}
 						</div>
 					</TabsContent>
 
@@ -654,6 +753,7 @@ export function PopulationMetricsCard({
 									label="Renter Occupied"
 									value={housing.percent_renter_occupied}
 									unit="%"
+									tooltip={`The percentage of occupied housing units that are renter-occupied. Derived from U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25003.`}
 								/>
 								<StatItem
 									icon={Building}
@@ -663,6 +763,7 @@ export function PopulationMetricsCard({
 											? `$${housing.median_home_value.toLocaleString()}`
 											: "N/A"
 									}
+									tooltip={`The median value of owner-occupied housing units. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25077.`}
 								/>
 								<StatItem
 									icon={DollarSign}
@@ -672,12 +773,26 @@ export function PopulationMetricsCard({
 											? `$${housing.median_gross_rent.toLocaleString()}`
 											: "N/A"
 									}
+									tooltip={`The median gross rent for renter-occupied units. Source: U.S. Census Bureau, ${data.data_year} ACS 5-Year Estimates, Table B25064.`}
 								/>
 							</div>
 							<div>
-								<h3 className="text-md font-semibold mb-2">
-									Housing Tenure
-								</h3>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<h3 className="text-md font-semibold mb-2 cursor-help w-fit">
+											Housing Tenure
+										</h3>
+									</TooltipTrigger>
+									<TooltipContent>
+										<p className="max-w-xs">
+											The percentage of occupied housing
+											units that are owner-occupied versus
+											renter-occupied. Derived from U.S.
+											Census Bureau, {data.data_year} ACS
+											5-Year Estimates, Table B25003.
+										</p>
+									</TooltipContent>
+								</Tooltip>
 								<div className="h-64 w-full">
 									{tenureData.length > 0 ? (
 										<ResponsiveContainer
@@ -726,18 +841,9 @@ export function PopulationMetricsCard({
 						</div>
 					</TabsContent>
 
-					<TabsContent value="map" className="mt-6">
-						<div className="h-96 w-full rounded-lg overflow-hidden">
-							<DynamicMap
-								lat={data.coordinates.lat}
-								lon={data.coordinates.lon}
-								area={data.tract_area_sq_meters}
-								interactive
-							/>
-						</div>
-					</TabsContent>
 				</Tabs>
 			</CardContent>
-		</Card>
+			</Card>
+		</TooltipProvider>
 	);
 }

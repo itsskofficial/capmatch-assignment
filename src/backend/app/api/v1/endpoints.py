@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
-from typing import Annotated
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from typing import Annotated, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 import time
 
-from app.schemas.population import MarketDataRequest, PopulationDataResponse, ErrorResponse
+from app.schemas.population import MarketDataRequest, PopulationDataResponse, ErrorResponse, CacheDeleteRequest
 from app.services.census_service import CensusService
 from app.db.session import get_db_session
 
@@ -56,3 +56,35 @@ async def get_market_data(
         )
         # Re-raising as a generic 500 error to avoid leaking implementation details
         raise HTTPException(status_code=500, detail="An unexpected internal error occurred.")
+
+@router.get(
+    "/market-data/cache",
+    response_model=List[str],
+    summary="Get all cached addresses",
+    description="Retrieves a list of all addresses currently in the server-side cache.",
+)
+async def get_all_cached_data(
+    service: CensusServiceDep,
+    db_session: DBSessionDep,
+):
+    """Returns a list of all cached search addresses."""
+    logger.info("Received request to list all cached addresses.")
+    addresses = await service.get_all_cached_addresses(db=db_session)
+    return addresses
+
+@router.delete(
+    "/market-data/cache",
+    status_code=204,
+    summary="Delete a cached address",
+    description="Removes a specific address from the server-side cache.",
+)
+async def delete_cached_data(
+    request: CacheDeleteRequest,
+    service: CensusServiceDep,
+    db_session: DBSessionDep,
+):
+    """Deletes a cache entry for a given address."""
+    logger.info(f"Received request to delete cache for address: '{request.address}'")
+    await service.delete_cache_for_address(address=request.address, db=db_session)
+    # Return a 204 No Content response, which is standard for successful DELETE operations
+    return Response(status_code=204)

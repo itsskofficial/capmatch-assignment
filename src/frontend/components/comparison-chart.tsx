@@ -83,6 +83,15 @@ const transformDataForBarChart = (
 					])
 				),
 			},
+			{
+				metric: "% Bachelor's+",
+				...Object.fromEntries(
+					addresses.map((addr) => [
+						addr.data!.geography_name,
+						addr.data!.demographics.percent_bachelors_or_higher,
+					])
+				),
+			},
 		];
 	}
 	if (metric === "housing") {
