@@ -60,54 +60,54 @@ const transformDataForBarChart = (
 				metric: "Median Income",
 				...Object.fromEntries(
 					addresses.map((addr) => [
-						addr.data!.geography_name,
-						addr.data!.demographics.median_household_income,
-					])
+						addr.data?.geography_name,
+						addr.data?.demographics?.median_household_income,
+					]),
 				),
 			},
 			{
 				metric: "Median Age",
 				...Object.fromEntries(
 					addresses.map((addr) => [
-						addr.data!.geography_name,
-						addr.data!.median_age,
-					])
+						addr.data?.geography_name,
+						addr.data?.median_age,
+					]),
 				),
 			},
 			{
 				metric: "Avg. Household Size",
 				...Object.fromEntries(
 					addresses.map((addr) => [
-						addr.data!.geography_name,
-						addr.data!.demographics.avg_household_size,
-					])
+						addr.data?.geography_name,
+						addr.data?.demographics?.avg_household_size,
+					]),
 				),
 			},
 			{
 				metric: "% Bachelor's+",
 				...Object.fromEntries(
 					addresses.map((addr) => [
-						addr.data!.geography_name,
-						addr.data!.demographics.percent_bachelors_or_higher,
-					])
+						addr.data?.geography_name,
+						addr.data?.demographics?.percent_bachelors_or_higher,
+					]),
 				),
 			},
 			{
 				metric: "Poverty Rate",
 				...Object.fromEntries(
 					addresses.map((addr) => [
-						addr.data!.geography_name,
-						addr.data!.economic_context?.poverty_rate,
-					])
+						addr.data?.geography_name,
+						addr.data?.economic_context?.poverty_rate,
+					]),
 				),
 			},
 			{
 				metric: "Mean Commute (min)",
 				...Object.fromEntries(
 					addresses.map((addr) => [
-						addr.data!.geography_name,
-						addr.data!.economic_context?.mean_commute_time_minutes,
-					])
+						addr.data?.geography_name,
+						addr.data?.economic_context?.mean_commute_time_minutes,
+					]),
 				),
 			},
 		];
@@ -118,45 +118,45 @@ const transformDataForBarChart = (
 				metric: "% Renter Occupied",
 				...Object.fromEntries(
 					addresses.map((addr) => [
-						addr.data!.geography_name,
-						addr.data!.housing.percent_renter_occupied,
-					])
+						addr.data?.geography_name,
+						addr.data?.housing?.percent_renter_occupied,
+					]),
 				),
 			},
 			{
 				metric: "Median Home Value",
 				...Object.fromEntries(
 					addresses.map((addr) => [
-						addr.data!.geography_name,
-						addr.data!.housing.median_home_value,
-					])
+						addr.data?.geography_name,
+						addr.data?.housing?.median_home_value,
+					]),
 				),
 			},
 			{
 				metric: "Median Gross Rent",
 				...Object.fromEntries(
 					addresses.map((addr) => [
-						addr.data!.geography_name,
-						addr.data!.housing.median_gross_rent,
-					])
+						addr.data?.geography_name,
+						addr.data?.housing?.median_gross_rent,
+					]),
 				),
 			},
 			{
 				metric: "Median Year Built",
 				...Object.fromEntries(
 					addresses.map((addr) => [
-						addr.data!.geography_name,
-						addr.data!.housing.median_year_structure_built,
-					])
+						addr.data?.geography_name,
+						addr.data?.housing?.median_year_structure_built,
+					]),
 				),
 			},
 			{
 				metric: "Vacancy Rate (%)",
 				...Object.fromEntries(
 					addresses.map((addr) => [
-						addr.data!.geography_name,
-						addr.data!.housing.vacancy_rate,
-					])
+						addr.data?.geography_name,
+						addr.data?.housing?.vacancy_rate,
+					]),
 				),
 			},
 		];
@@ -199,7 +199,9 @@ export function ComparisonChart({
 		);
 	}
 
-	const seriesKeys = addresses.map((addr) => addr.data!.geography_name);
+	const seriesKeys = addresses
+		.map((addr) => addr.data?.geography_name)
+		.filter(Boolean) as string[];
 
 	if (metric === "population_trend") {
 		const chartData = transformDataForChart(addresses);

@@ -31,6 +31,12 @@ class BenchmarkData(BaseModel):
 class ErrorResponse(BaseModel):
     detail: str
 
+# --- NEW: FIPS Code Schema ---
+class FipsCode(BaseModel):
+    state: str
+    county: str
+    tract: str
+
 # --- Core Data Schemas (Modified & New) ---
 class GrowthMetrics(BaseModel):
     """Flexible growth metrics based on the requested time period."""
@@ -131,6 +137,7 @@ class PopulationDataResponse(BaseModel):
     data_year: int
     geography_name: str
     geography_level: Literal['tract', 'county']
+    fips: FipsCode # <-- UPDATED
     tract_area_sq_meters: int
     coordinates: Coordinates
 

@@ -12,7 +12,7 @@ const BACKEND_URL = process.env.BACKEND_API_URL;
 async function handler(req: NextRequest) {
 	// 1. Construct the full URL to the FastAPI endpoint.
 	// req.nextUrl.pathname will be something like '/api/v1/population-growth'
-	const backendUrl = `${BACKEND_URL}${req.nextUrl.pathname}`;
+	const backendUrl = `${BACKEND_URL}${req.nextUrl.pathname}${req.nextUrl.search}`;
 
 	// 2. Check if the backend URL is configured.
 	if (!BACKEND_URL) {

@@ -1,106 +1,15 @@
 "use client";
 
-import { XIcon, List, Loader2, AlertTriangle } from "lucide-react";
-
-import { Button } from "@components/ui/button";
+import React from "react";
+import { List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@components/ui/card";
-import { Skeleton } from "@components/ui/skeleton";
-import type { AddressEntry } from "@lib/types";
-import { cn } from "@lib/utils";
-import DynamicMap from "@components/dynamic-map";
-
-function SummaryCard({
-	address,
-	onRemove,
-	onSelect,
-	isAnyModalOpen,
-}: {
-	address: AddressEntry;
-	onRemove: () => void;
-	onSelect: () => void;
-	isAnyModalOpen: boolean;
-}) {
-	const renderStatus = () => {
-		switch (address.status) {
-			case "loading":
-				return (
-					<div className="flex items-center text-sm text-blue-500">
-						<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-						Fetching data...
-					</div>
-				);
-			case "success":
-				return (
-					<p className="truncate text-sm text-green-600 dark:text-green-400">
-						{address.data?.geography_name}
-					</p>
-				);
-			case "error":
-				return (
-					<p
-						className="truncate text-sm text-red-500 dark:text-red-400"
-						title={address.error}
-					>
-						Error: {address.error ?? "Unknown error"}
-					</p>
-				);
-			default:
-				return null;
-		}
-	};
-
-	return (
-		<Card
-			className={cn(
-				"group relative transition-all hover:shadow-md overflow-hidden p-0 gap-0",
-				address.status === "success" && "cursor-pointer"
-			)}
-			onClick={address.status === "success" ? onSelect : undefined}
-		>
-			<Button
-				variant="ghost"
-				size="icon"
-				className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 z-10 bg-background/50 hover:bg-background/80"
-				onClick={(e) => {
-					e.stopPropagation();
-					onRemove();
-				}}
-			>
-				<XIcon className="h-4 w-4" />
-			</Button>
-			<div className="h-32 w-full">
-				{address.status === "loading" && (
-					<Skeleton className="h-full w-full rounded-none" />
-				)}
-				{address.status === "error" && (
-					<div className="flex h-full w-full items-center justify-center bg-destructive/10">
-						<AlertTriangle className="h-8 w-8 text-destructive" />
-					</div>
-				)}
-				{address.status === "success" && address.data && (
-					isAnyModalOpen ? (
-						<Skeleton className="h-full w-full rounded-none" />
-					) : (
-						<DynamicMap
-							lat={address.data.coordinates.lat}
-							lon={address.data.coordinates.lon}
-							area={address.data.tract_area_sq_meters}
-						/>
-					)
-				)}
-			</div>
-			<CardContent className="p-4">
-				<p className="truncate pr-6 font-medium">{address.value}</p>
-				<div className="mt-1">{renderStatus()}</div>
-			</CardContent>
-		</Card>
-	);
-}
+import { MemoizedSummaryCard } from "@components/SummaryCard";
+import type { AddressIdentifier } from "@stores/addressStore";
 
 interface MultiAddressOutputProps {
-	addresses: AddressEntry[];
+	addresses: AddressIdentifier[];
 	onRemoveAddress: (id: string) => void;
-	onSelectAddress: (address: AddressEntry) => void;
+	onSelectAddress: (address: AddressIdentifier) => void;
 	isAnyModalOpen: boolean;
 }
 
@@ -136,9 +45,9 @@ export function MultiAddressOutput({
 				<CardContent className="flex-grow overflow-auto p-4">
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
 						{addresses.map((addr) => (
-							<SummaryCard
+							<MemoizedSummaryCard
 								key={addr.id}
-								address={addr}
+								addressIdentifier={addr}
 								onRemove={() => onRemoveAddress(addr.id)}
 								onSelect={() => onSelectAddress(addr)}
 								isAnyModalOpen={isAnyModalOpen}

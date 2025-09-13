@@ -44,20 +44,26 @@ const benchmarkDataSchema = z
 	.nullable()
 	.optional();
 
-const householdCompositionSchema = z.object({
-	total_households: z.number().nullable(),
-	percent_family_households: z.number().nullable(),
-	percent_married_couple_family: z.number().nullable(),
-	percent_non_family_households: z.number().nullable(),
-}).nullable().optional();
+const householdCompositionSchema = z
+	.object({
+		total_households: z.number().nullable(),
+		percent_family_households: z.number().nullable(),
+		percent_married_couple_family: z.number().nullable(),
+		percent_non_family_households: z.number().nullable(),
+	})
+	.nullable()
+	.optional();
 
-const raceAndEthnicitySchema = z.object({
-	percent_white_non_hispanic: z.number().nullable(),
-	percent_black_non_hispanic: z.number().nullable(),
-	percent_asian_non_hispanic: z.number().nullable(),
-	percent_hispanic: z.number().nullable(),
-	percent_other_non_hispanic: z.number().nullable(),
-}).nullable().optional();
+const raceAndEthnicitySchema = z
+	.object({
+		percent_white_non_hispanic: z.number().nullable(),
+		percent_black_non_hispanic: z.number().nullable(),
+		percent_asian_non_hispanic: z.number().nullable(),
+		percent_hispanic: z.number().nullable(),
+		percent_other_non_hispanic: z.number().nullable(),
+	})
+	.nullable()
+	.optional();
 
 const demographicsSchema = z.object({
 	median_household_income: z.number().nullable(),
@@ -67,11 +73,14 @@ const demographicsSchema = z.object({
 	race_and_ethnicity: raceAndEthnicitySchema,
 });
 
-const economicContextSchema = z.object({
-	poverty_rate: z.number().nullable(),
-	labor_force_participation_rate: z.number().nullable(),
-	mean_commute_time_minutes: z.number().nullable(),
-}).nullable().optional();
+const economicContextSchema = z
+	.object({
+		poverty_rate: z.number().nullable(),
+		labor_force_participation_rate: z.number().nullable(),
+		mean_commute_time_minutes: z.number().nullable(),
+	})
+	.nullable()
+	.optional();
 
 const housingMetricsSchema = z.object({
 	percent_renter_occupied: z.number().nullable(),
@@ -129,11 +138,19 @@ const populationTrendSchema = z.object({
 	benchmark: benchmarkDataSchema,
 });
 
+// --- NEW: FIPS Code Schema ---
+const fipsCodeSchema = z.object({
+	state: z.string(),
+	county: z.string(),
+	tract: z.string(),
+});
+
 export const populationDataResponseSchema = z.object({
 	search_address: z.string(),
 	data_year: z.number(),
 	geography_name: z.string(),
 	geography_level: z.enum(["tract", "county"]),
+	fips: fipsCodeSchema, // <-- UPDATED
 	coordinates: coordinatesSchema,
 	tract_area_sq_meters: z.number(),
 	total_population: z.number(),

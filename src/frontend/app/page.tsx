@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
+import { useQueryClient, useQueries } from "@tanstack/react-query";
 import {
 	Compass,
 	BarChartHorizontal,
@@ -9,7 +11,6 @@ import {
 	Home,
 } from "lucide-react";
 import { PopulationMetricsCard } from "@components/population-metrics-card";
-
 import {
 	ResizablePanelGroup,
 	ResizablePanel,
@@ -22,7 +23,6 @@ import {
 	type AddAddressSchema,
 } from "@components/multi-address-input";
 import { MultiAddressOutput } from "@components/multi-address-output";
-import { ComparisonChart } from "@components/comparison-chart";
 import {
 	Card,
 	CardContent,
@@ -37,36 +37,101 @@ import {
 	DialogTitle,
 } from "@components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@components/ui/tabs";
+import { useAppStore, type AddressIdentifier } from "@stores/addressStore";
+import {
+	useCachedAddresses,
+	useDeleteCachedAddress,
+	useMarketData,
+} from "@hooks/useMarketData";
+import type { AddressEntry } from "@lib/types";
+import { marketDataRequestSchema } from "@lib/schemas";
 
-import { useAddressStore } from "@/stores/addressStore";
+const ComparisonChart = dynamic(
+	() =>
+		import("@components/comparison-chart").then(
+			(mod) => mod.ComparisonChart
+		),
+	{ ssr: false }
+);
 
 export default function HomePage() {
 	const {
 		mode,
 		addresses,
 		selectedAddress,
-		cachedAddresses,
 		setMode,
 		addAddress,
 		removeAddress,
 		selectAddress,
-		fetchCachedAddresses,
-		removeAddressFromCache,
-	} = useAddressStore();
+	} = useAppStore();
+	const { data: cachedAddresses } = useCachedAddresses();
+	const deleteFromCacheMutation = useDeleteCachedAddress();
+	const queryClient = useQueryClient();
 
-	// Fetch cached addresses on initial component mount
-	useEffect(() => {
-		fetchCachedAddresses();
-	}, [fetchCachedAddresses]);
+	const handleAddAddress = useCallback(
+		(data: AddAddressSchema) => {
+			addAddress(data.address);
+		},
+		[addAddress]
+	);
+
+	const handleRemoveAddress = useCallback(
+		(id: string) => {
+			const addressToRemove = addresses.find((addr) => addr.id === id);
+			if (addressToRemove) {
+				// Invalidate the specific query for this address when it's removed
+				queryClient.invalidateQueries({
+					queryKey: ["marketData", "detail", addressToRemove.value],
+				});
+			}
+			removeAddress(id);
+		},
+		[addresses, removeAddress, queryClient]
+	);
+
+	const handleSelectAddress = useCallback(
+		(address: AddressIdentifier) => {
+			selectAddress(address);
+		},
+		[selectAddress]
+	);
+
+	const handleDeselectAddress = useCallback(() => {
+		selectAddress(null);
+	}, [selectAddress]);
+
+	const queries = useQueries({
+		queries: addresses.map((address) => ({
+			queryKey: ["marketData", "detail", address.value],
+			queryFn: () =>
+				marketDataRequestSchema.parse({ address: address.value }),
+			enabled: mode === "compare", // Only fetch for comparison chart if in compare mode
+			staleTime: 1000 * 60 * 5,
+		})),
+	});
+
+	const successfulAddresses = useMemo((): AddressEntry[] => {
+		return queries
+			.filter((query) => query.isSuccess && query.data)
+			.map((query, index) => ({
+				id: addresses[index].id,
+				value: addresses[index].value,
+				status: "success",
+				data: query.data as unknown, // Cast because we know it's successful
+			}));
+	}, [queries, addresses]);
+
+	const {
+		data: selectedAddressData,
+		isLoading: isSelectedLoading,
+		isError: isSelectedError,
+		error: selectedError,
+	} = useMarketData(selectedAddress?.value ?? "", !!selectedAddress);
 
 	const dockItems = [
 		{ title: "explore" as const, icon: <Compass /> },
 		{ title: "compare" as const, icon: <BarChartHorizontal /> },
 	];
-
-	const successfulAddresses = addresses.filter(
-		(addr) => addr.status === "success" && addr.data
-	);
 
 	return (
 		<div className="flex min-h-screen w-full bg-muted/40">
@@ -91,7 +156,7 @@ export default function HomePage() {
 				<FloatingDock
 					items={dockItems}
 					activeMode={mode}
-					onModeChange={(newMode) => setMode(newMode)}
+					onModeChange={setMode}
 				/>
 			</aside>
 
@@ -109,8 +174,8 @@ export default function HomePage() {
 							{mode === "explore" && (
 								<MultiAddressOutput
 									addresses={addresses}
-									onRemoveAddress={removeAddress}
-									onSelectAddress={selectAddress}
+									onRemoveAddress={handleRemoveAddress}
+									onSelectAddress={handleSelectAddress}
 									isAnyModalOpen={!!selectedAddress}
 								/>
 							)}
@@ -193,14 +258,12 @@ export default function HomePage() {
 							<ScrollArea className="h-full">
 								<div className="p-4 md:p-6 lg:p-8">
 									<MultiAddressInput
-										onAddAddress={(data) =>
-											addAddress(data.address)
-										}
+										onAddAddress={handleAddAddress}
 										addresses={addresses}
-										onRemoveAddress={removeAddress}
-										cachedAddresses={cachedAddresses}
+										onRemoveAddress={handleRemoveAddress}
+										cachedAddresses={cachedAddresses ?? []}
 										onRemoveFromCache={
-											removeAddressFromCache
+											deleteFromCacheMutation.mutate
 										}
 									/>
 								</div>
@@ -209,9 +272,10 @@ export default function HomePage() {
 					</ResizablePanel>
 				</ResizablePanelGroup>
 			</div>
+
 			<Dialog
 				open={!!selectedAddress}
-				onOpenChange={() => selectAddress(null)}
+				onOpenChange={(isOpen) => !isOpen && handleDeselectAddress()}
 			>
 				<DialogContent className="sm:max-w-7xl w-full h-[90vh] flex flex-col">
 					<DialogHeader>
@@ -219,10 +283,10 @@ export default function HomePage() {
 					</DialogHeader>
 					<div className="flex-1 overflow-y-auto">
 						<PopulationMetricsCard
-							isLoading={false}
-							isError={false}
-							error={null}
-							data={selectedAddress?.data}
+							isLoading={isSelectedLoading}
+							isError={isSelectedError}
+							error={selectedError}
+							data={selectedAddressData}
 						/>
 					</div>
 				</DialogContent>

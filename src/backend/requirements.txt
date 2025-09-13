@@ -10,3 +10,6 @@ psycopg2-binary
 alembic
 asyncpg
 geopy
+tenacity # For exponential backoff retries
+pytest # For testing
+pytest-asyncio # For async testing

@@ -1,10 +1,12 @@
 "use client";
 
-import { MapContainer, TileLayer, Marker, Circle } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, GeoJSON } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { useEffect } from "react";
 import { useMap } from "react-leaflet/hooks";
+import type { GeoJsonObject } from "geojson";
+import { useTractGeoJSON } from "@hooks/useMarketData";
 
 // Fix for default icon issue with Webpack
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
@@ -18,44 +20,41 @@ L.Icon.Default.mergeOptions({
 interface MapComponentProps {
 	lat: number;
 	lon: number;
-	area: number; // in square meters
+	fips: { state: string; county: string; tract: string } | null;
 	interactive?: boolean;
 }
 
-const MapUpdater: React.FC<{ center: [number, number]; radius: number }> = ({
-	center,
-	radius,
-}) => {
+const MapUpdater: React.FC<{
+	center: [number, number];
+	geoJsonData?: GeoJsonObject | null;
+}> = ({ center, geoJsonData }) => {
 	const map = useMap();
 	useEffect(() => {
-		if (!map) return; // Guard clause: Don't run effect if map isn't ready
-		if (radius > 0) {
-			const bounds = L.latLng(center).toBounds(radius * 2);
-			map.fitBounds(bounds);
+		if (!map) return;
+		if (geoJsonData) {
+			const geoJsonLayer = L.geoJSON(geoJsonData);
+			map.fitBounds(geoJsonLayer.getBounds());
 		} else {
 			map.setView(center, 14);
 		}
-	}, [map, center, radius]);
+	}, [map, center, geoJsonData]);
 	return null;
 };
 
 const MapComponent: React.FC<MapComponentProps> = ({
 	lat,
 	lon,
-	area,
+	fips,
 	interactive = false,
 }) => {
 	const position: [number, number] = [lat, lon];
-	const radius = area > 0 ? Math.sqrt(area / Math.PI) : 0;
+	const { data: geoJsonData } = useTractGeoJSON(fips);
 
 	return (
 		<MapContainer
 			center={position}
 			zoom={14}
-			style={{
-				height: "100%",
-				width: "100%",
-			}}
+			style={{ height: "100%", width: "100%" }}
 			scrollWheelZoom={interactive}
 			dragging={interactive}
 			zoomControl={interactive}
@@ -68,8 +67,18 @@ const MapComponent: React.FC<MapComponentProps> = ({
 				url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 			/>
 			<Marker position={position} />
-			{radius > 0 && <Circle center={position} radius={radius} pathOptions={{ color: 'blue', fillColor: 'blue' }} />}
-			<MapUpdater center={position} radius={radius} />
+			{geoJsonData && (
+				<GeoJSON
+					data={geoJsonData as GeoJsonObject}
+					style={{
+						color: "blue",
+						weight: 2,
+						opacity: 0.7,
+						fillOpacity: 0.2,
+					}}
+				/>
+			)}
+			<MapUpdater center={position} geoJsonData={geoJsonData} />
 		</MapContainer>
 	);
 };

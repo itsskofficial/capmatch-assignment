@@ -1,3 +1,4 @@
+// src/frontend/components/population-metrics-card.tsx
 "use client";
 
 import React from "react";
@@ -9,6 +10,7 @@ import {
 	CardTitle,
 } from "@components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@components/ui/alert";
+import { Button } from "@components/ui/button";
 import { Skeleton } from "@components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@components/ui/tabs";
 import {
@@ -43,6 +45,7 @@ import {
 	Briefcase,
 	Clock,
 	House,
+	Download,
 } from "lucide-react";
 import type { PopulationDataResponse } from "@lib/schemas";
 import { cn } from "@lib/utils";
@@ -53,6 +56,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@components/ui/tooltip";
+import Papa from "papaparse";
 
 interface PopulationMetricsCardProps {
 	isLoading: boolean;
@@ -97,11 +101,7 @@ const StatItem = ({
 			</div>
 		</div>
 	);
-
-	if (!tooltip) {
-		return content;
-	}
-
+	if (!tooltip) return content;
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
@@ -120,9 +120,67 @@ const formatPopulation = (value: number) =>
 		: value >= 1_000
 		? `${(value / 1_000).toFixed(0)}K`
 		: value.toString();
-
 const formatSigned = (value: number) =>
 	value.toLocaleString("en-US", { signDisplay: "always" });
+
+const handleExportToCSV = (data: PopulationDataResponse) => {
+	const flatData = {
+		"Search Address": data.search_address,
+		"Geography Name": data.geography_name,
+		"Data Year": data.data_year,
+		Latitude: data.coordinates.lat,
+		Longitude: data.coordinates.lon,
+		"Total Population": data.total_population,
+		"Median Age": data.median_age,
+		"5-Yr CAGR (%)": data.growth.cagr,
+		"Absolute Population Change (5-Yr)": data.growth.absolute_change,
+		"Population Density (per sq mi)":
+			data.population_density.people_per_sq_mile,
+		"Median Household Income": data.demographics.median_household_income,
+		"Percent with Bachelor's Degree or Higher":
+			data.demographics.percent_bachelors_or_higher,
+		"Average Household Size": data.demographics.avg_household_size,
+		"Percent Renter Occupied": data.housing.percent_renter_occupied,
+		"Median Home Value": data.housing.median_home_value,
+		"Median Gross Rent": data.housing.median_gross_rent,
+		"Walk Score": data.walkability?.walk_score,
+		"Transit Score": data.walkability?.transit_score,
+	};
+	const csv = Papa.unparse([flatData]);
+	const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+	const link = document.createElement("a");
+	const url = URL.createObjectURL(blob);
+	link.setAttribute("href", url);
+	const safeFilename = data.search_address
+		.replace(/[^a-z0-9]/gi, "_")
+		.toLowerCase();
+	link.setAttribute("download", `market_data_${safeFilename}.csv`);
+	link.style.visibility = "hidden";
+	document.body.appendChild(link);
+	link.click();
+	document.body.removeChild(link);
+};
+
+type FetchError = Error & { status?: number };
+
+const getFriendlyErrorMessage = (error: Error | null): { title: string; description: string } => {
+	if (!error) return { title: "Error", description: "An unknown error occurred." };
+	// The custom FetchError from the hook should have a status property
+	const status = (error as FetchError).status;
+	if (status === 404) {
+		return {
+			title: "Address Not Found",
+			description: "We couldn't find that address. Please check for typos or try being more specific.",
+		};
+	}
+	if (status === 503) {
+		return {
+			title: "Service Unavailable",
+			description: "An external data service is temporarily down. Please try again in a few moments.",
+		};
+	}
+	return { title: "An Unexpected Error Occurred", description: error.message || "Could not fetch data." };
+};
 
 export function PopulationMetricsCard({
 	isLoading,
@@ -130,6 +188,8 @@ export function PopulationMetricsCard({
 	error,
 	data,
 }: PopulationMetricsCardProps) {
+	const friendlyError = getFriendlyErrorMessage(error);
+
 	if (isLoading)
 		return (
 			<Card className="w-full max-w-3xl">
@@ -142,26 +202,25 @@ export function PopulationMetricsCard({
 				</CardContent>
 			</Card>
 		);
-	if (isError)
+	if (isError) {
 		return (
 			<Alert variant="destructive" className="w-full max-w-3xl">
 				<AlertCircle className="h-4 w-4" />
-				<AlertTitle>Error</AlertTitle>
-				<AlertDescription>
-					{error?.message || "Could not fetch data."}
-				</AlertDescription>
+				<AlertTitle>{friendlyError.title}</AlertTitle>
+				<AlertDescription>{friendlyError.description}</AlertDescription>
 			</Alert>
 		);
+	}
 	if (!data)
 		return (
-			<Card className="w-full max-w-3xl border-dashed">
+			<Card className="w-full border-dashed">
 				<CardHeader className="text-center">
 					<div className="mx-auto bg-secondary rounded-full p-3 w-fit">
 						<TrendingUp className="h-8 w-8 text-muted-foreground" />
 					</div>
 					<CardTitle className="mt-2">Population Metrics</CardTitle>
 					<CardDescription>
-						Enter an address to generate a population card.
+						Data will be displayed here.
 					</CardDescription>
 				</CardHeader>
 			</Card>
@@ -178,26 +237,61 @@ export function PopulationMetricsCard({
 		economic_context,
 		sex_distribution,
 	} = data;
-
 	const ageData = [
 		{ name: "Under 18", value: data.age_distribution.under_18 },
 		{ name: "18-34", value: data.age_distribution._18_to_34 },
 		{ name: "35-64", value: data.age_distribution._35_to_64 },
 		{ name: "65+", value: data.age_distribution.over_65 },
 	];
-
-	const householdData = demographics.household_composition ? [
-		{ name: "Family", value: demographics.household_composition.percent_family_households ?? 0 },
-		{ name: "Non-Family", value: demographics.household_composition.percent_non_family_households ?? 0 },
-	] : [];
-
-	const raceData = demographics.race_and_ethnicity ? [
-		{ name: "White", value: demographics.race_and_ethnicity.percent_white_non_hispanic ?? 0 },
-		{ name: "Black", value: demographics.race_and_ethnicity.percent_black_non_hispanic ?? 0 },
-		{ name: "Asian", value: demographics.race_and_ethnicity.percent_asian_non_hispanic ?? 0 },
-		{ name: "Hispanic", value: demographics.race_and_ethnicity.percent_hispanic ?? 0 },
-		{ name: "Other", value: demographics.race_and_ethnicity.percent_other_non_hispanic ?? 0 },
-	] : [];
+	const householdData = demographics.household_composition
+		? [
+				{
+					name: "Family",
+					value:
+						demographics.household_composition
+							.percent_family_households ?? 0,
+				},
+				{
+					name: "Non-Family",
+					value:
+						demographics.household_composition
+							.percent_non_family_households ?? 0,
+				},
+		  ]
+		: [];
+	const raceData = demographics.race_and_ethnicity
+		? [
+				{
+					name: "White",
+					value:
+						demographics.race_and_ethnicity
+							.percent_white_non_hispanic ?? 0,
+				},
+				{
+					name: "Black",
+					value:
+						demographics.race_and_ethnicity
+							.percent_black_non_hispanic ?? 0,
+				},
+				{
+					name: "Asian",
+					value:
+						demographics.race_and_ethnicity
+							.percent_asian_non_hispanic ?? 0,
+				},
+				{
+					name: "Hispanic",
+					value:
+						demographics.race_and_ethnicity.percent_hispanic ?? 0,
+				},
+				{
+					name: "Other",
+					value:
+						demographics.race_and_ethnicity
+							.percent_other_non_hispanic ?? 0,
+				},
+		  ]
+		: [];
 	const RACE_COLORS = [
 		"hsl(var(--chart-1))",
 		"hsl(var(--chart-2))",
@@ -211,9 +305,8 @@ export function PopulationMetricsCard({
 			? [
 					{ name: "Renters", value: tenureValue },
 					{ name: "Owners", value: 100 - tenureValue },
-		  ]
-		: [];
-
+			  ]
+			: [];
 	const sexData =
 		sex_distribution &&
 		sex_distribution.male != null &&
@@ -224,42 +317,51 @@ export function PopulationMetricsCard({
 			  ]
 			: [];
 	const TENURE_COLORS = ["hsl(var(--primary))", "hsl(var(--muted))"];
-
 	const projectionKey = "Projection";
-    const chartDataMap = new Map();
-
-    population_trends.trend.forEach((p) => {
-        chartDataMap.set(p.year, { year: p.year, [data.geography_name]: p.population });
-    });
-
-    // Manually construct projection data to ensure the line connects correctly
-    if (population_trends.trend.length > 0 && population_trends.projection.length > 0) {
-        const lastTrendPoint = population_trends.trend.at(-1)!;
-        chartDataMap.get(lastTrendPoint.year)[projectionKey] = lastTrendPoint.population;
-        population_trends.projection.forEach((p) => {
-            chartDataMap.set(p.year, { year: p.year, [projectionKey]: p.population });
-        });
-    }
-
-    const trendData = Array.from(chartDataMap.values()).sort((a, b) => a.year - b.year);
-
-	let allTicks: number[] | undefined = undefined;
-	if (trendData.length > 0) {
-		const allYearsOnChart = trendData.map((d) => d.year);
-		const minYear = Math.min(...allYearsOnChart);
-		const maxYear = Math.max(...allYearsOnChart);
-		if (isFinite(minYear) && isFinite(maxYear)) {
-			allTicks = Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i);
-		}
+	const chartDataMap = new Map();
+	population_trends.trend.forEach((p) =>
+		chartDataMap.set(p.year, {
+			year: p.year,
+			[data.geography_name]: p.population,
+		})
+	);
+	if (
+		population_trends.trend.length > 0 &&
+		population_trends.projection.length > 0
+	) {
+		const lastTrendPoint = population_trends.trend.at(-1)!;
+		chartDataMap.set(lastTrendPoint.year, {
+			...chartDataMap.get(lastTrendPoint.year),
+			[projectionKey]: lastTrendPoint.population,
+		});
+		population_trends.projection.forEach((p) =>
+			chartDataMap.set(p.year, {
+				year: p.year,
+				[projectionKey]: p.population,
+			})
+		);
 	}
-
+	const trendData = Array.from(chartDataMap.values()).sort(
+		(a, b) => a.year - b.year
+	);
+	const allTicks =
+		trendData.length > 0
+			? Array.from(
+					{
+						length:
+							trendData[trendData.length - 1].year -
+							trendData[0].year +
+							1,
+					},
+					(_, i) => trendData[0].year + i
+			  )
+			: [];
 	const growthMetric = growth.cagr;
 	const growthLabel = `${growth.period_years}-Yr CAGR`;
 	const growthColor =
 		growthMetric != null && growthMetric > 0
 			? "text-green-600"
 			: "text-red-600";
-
 	const inflowOutflowData = migration
 		? [
 				{
@@ -274,14 +376,20 @@ export function PopulationMetricsCard({
 				},
 		  ]
 		: [];
-
 	const domesticIntlData = migration
 		? [
-				{ name: "Domestic", value: migration.domestic_migration, fill: "hsl(var(--chart-3))" },
-				{ name: "International", value: migration.international_migration, fill: "hsl(var(--chart-4))" },
+				{
+					name: "Domestic",
+					value: migration.domestic_migration,
+					fill: "hsl(var(--chart-3))",
+				},
+				{
+					name: "International",
+					value: migration.international_migration,
+					fill: "hsl(var(--chart-4))",
+				},
 		  ]
 		: [];
-
 	const naturalIncreaseData = natural_increase
 		? [
 				{ name: "Births", value: natural_increase.births },
@@ -292,25 +400,42 @@ export function PopulationMetricsCard({
 	return (
 		<TooltipProvider>
 			<Card className="w-full">
-			<CardHeader>
-				<CardTitle>
-					Metrics for{" "}
-					<span className="text-primary">{data.search_address}</span>
-				</CardTitle>
-				<CardDescription>
-					{data.geography_name} (tract, {data.data_year} ACS Data)
-				</CardDescription>
-			</CardHeader>
-			<CardContent className="space-y-6">
-				<Tabs defaultValue="overview">
-					<TabsList className="grid w-full grid-cols-4">
-						<TabsTrigger value="overview">Overview</TabsTrigger>
-						<TabsTrigger value="demographics">
-							Demographics
-						</TabsTrigger>
-						<TabsTrigger value="economics">Economics & Drivers</TabsTrigger>
-						<TabsTrigger value="housing">Housing</TabsTrigger>
-					</TabsList>
+				<CardHeader>
+					<div className="flex justify-between items-start">
+						<div>
+							<CardTitle>
+								Metrics for{" "}
+								<span className="text-primary">
+									{data.search_address}
+								</span>
+							</CardTitle>
+							<CardDescription>
+								{data.geography_name} (tract, {data.data_year}{" "}
+								ACS Data)
+							</CardDescription>
+						</div>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => handleExportToCSV(data)}
+						>
+							<Download className="mr-2 h-4 w-4" />
+							Export CSV
+						</Button>
+					</div>
+				</CardHeader>
+				<CardContent className="space-y-6">
+					<Tabs defaultValue="overview">
+						<TabsList className="grid w-full grid-cols-4">
+							<TabsTrigger value="overview">Overview</TabsTrigger>
+							<TabsTrigger value="demographics">
+								Demographics
+							</TabsTrigger>
+							<TabsTrigger value="economics">
+								Economics & Drivers
+							</TabsTrigger>
+							<TabsTrigger value="housing">Housing</TabsTrigger>
+						</TabsList>
 
 					<TabsContent value="overview" className="mt-6">
 						<div className="space-y-8">
@@ -336,7 +461,7 @@ export function PopulationMetricsCard({
 									{growth.absolute_change != null && (
 										<p className="text-xs text-muted-foreground">
 											{formatSigned(
-												growth.absolute_change
+												growth.absolute_change ?? 0
 											)}{" "}
 											people
 										</p>
@@ -403,8 +528,8 @@ export function PopulationMetricsCard({
 											Historical population data is from
 											ACS 5-Year Estimates. Projections
 											are calculated by applying the
-											county's average historical growth
-											rate to the tract's most recent
+											county&apos;s average historical growth
+											rate to the tract&apos;s most recent
 											population figure.
 										</p>
 									</TooltipContent>
@@ -432,44 +557,54 @@ export function PopulationMetricsCard({
 												}
 											/>
 											<Legend />
-											<Line
-												type="monotone"
-												dataKey={data.geography_name}
-												connectNulls
-												stroke="black"
-												strokeWidth={2}
-												dot={{ r: 2 }}
-												activeDot={{ r: 4 }}
-											/>
-											{population_trends.projection.length > 0 && (
 												<Line
 													type="monotone"
-													dataKey={projectionKey}
+													dataKey={data.geography_name}
 													connectNulls
-													stroke="red"
+													stroke="black"
 													strokeWidth={2}
-													strokeDasharray="5 5"
 													dot={{ r: 2 }}
 													activeDot={{ r: 4 }}
 												/>
-											)}
-										</LineChart>
-									</ResponsiveContainer>
+												{population_trends.projection.length > 0 && (
+													<Line
+														type="monotone"
+														dataKey={projectionKey}
+														connectNulls
+														stroke="red"
+														strokeWidth={2}
+														strokeDasharray="5 5"
+														dot={{ r: 2 }}
+														activeDot={{ r: 4 }}
+													/>
+												)}
+											</LineChart>
+										</ResponsiveContainer>
+									</div>
+								</div>
+								<div>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<h3 className="text-md font-semibold mb-2 cursor-help w-fit">
+												Map View
+											</h3>
+										</TooltipTrigger>
+										<TooltipContent>
+											The boundary of the census tract is
+											shown.
+										</TooltipContent>
+									</Tooltip>
+									<div className="h-96 w-full rounded-lg overflow-hidden">
+										<DynamicMap
+											lat={data.coordinates.lat}
+											lon={data.coordinates.lon}
+											fips={data.fips}
+											interactive
+										/>
+									</div>
 								</div>
 							</div>
-							<div>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<h3 className="text-md font-semibold mb-2 cursor-help w-fit">Map View</h3>
-									</TooltipTrigger>
-									<TooltipContent>The approximate boundary of the census tract is shown in blue.</TooltipContent>
-								</Tooltip>
-								<div className="h-96 w-full rounded-lg overflow-hidden">
-									<DynamicMap lat={data.coordinates.lat} lon={data.coordinates.lon} area={data.tract_area_sq_meters} interactive />
-								</div>
-							</div>
-						</div>
-					</TabsContent>
+						</TabsContent>
 
 					<TabsContent value="demographics" className="mt-6">
 						<div className="space-y-8">
@@ -648,7 +783,7 @@ export function PopulationMetricsCard({
 										</TooltipTrigger>
 										<TooltipContent>
 											<p className="max-w-xs">
-												The racial and ethnic breakdown of the tract population. "Other" includes American Indian, Pacific Islander, Other, and Two or More Races. Source: U.S. Census Bureau, {data.data_year} ACS 5-Year Estimates, Table B03002.
+												The racial and ethnic breakdown of the tract population. &quot;Other&quot; includes American Indian, Pacific Islander, Other, and Two or More Races. Source: U.S. Census Bureau, {data.data_year} ACS 5-Year Estimates, Table B03002.
 											</p>
 										</TooltipContent>
 									</Tooltip>
@@ -688,10 +823,10 @@ export function PopulationMetricsCard({
 										<TooltipContent>
 											<p className="max-w-xs">
 												Components of population change at
-												the county level. "Inflows" and
-												"Outflows" are from the 2022 ACS
-												5-Year Flows data. "Domestic" and
-												"International" migration are from
+												the county level. &quot;Inflows&quot; and
+												&quot;Outflows&quot; are from the 2022 ACS
+												5-Year Flows data. &quot;Domestic&quot; and
+												&quot;International&quot; migration are from
 												the 2019 Census Population
 												Estimates Program (PEP).
 											</p>
