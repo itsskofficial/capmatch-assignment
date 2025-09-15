@@ -131,22 +131,22 @@ The application will be available at **[http://localhost:3000](http://localhost:
 
 ## 🔮 Future Improvements
 
-*   **📈 Add County/MSA Benchmark Data:** Enhance the population trend chart by directly overlaying the county or MSA trend line. This provides immediate visual context for whether the specific location is outperforming or underperforming the broader market.
+*   **Add County/MSA Benchmark Data:** Enhance the population trend chart by directly overlaying the county or MSA trend line. This provides immediate visual context for whether the specific location is outperforming or underperforming the broader market.
 
-*   **⚡️ Integrate Hyper-Current Data:** Augment the foundational Census data by integrating with paid data providers (e.g., Esri, Placer.ai) to access more timely metrics like quarterly population estimates and real-time foot traffic data, reducing the lag of public sources.
+*   **Integrate Hyper-Current Data:** Augment the foundational Census data by integrating with paid data providers (e.g., Esri, Placer.ai) to access more timely metrics like quarterly population estimates and real-time foot traffic data, reducing the lag of public sources.
 
-*   **✨ Add More Market Cards:** The architecture is extensible and ready for new data verticals. Key additions would include **Job Growth** (from the Bureau of Labor Statistics), **Supply Pipeline** (new construction), and **Rent/Sales Comparables** (from commercial providers).
+*   **Add More Market Cards:** The architecture is extensible and ready for new data verticals. Key additions would include **Job Growth** (from the Bureau of Labor Statistics), **Supply Pipeline** (new construction), and **Rent/Sales Comparables** (from commercial providers).
 
-*   **🤖 AI-Powered Insights & Summaries:** Integrate a Large Language Model (LLM) to automatically generate natural language summaries of the market card (e.g., "This tract shows strong growth driven by an affluent, highly-educated population...") and to flag potential risks or opportunities based on the data.
+*   **AI-Powered Insights & Summaries:** Integrate a Large Language Model (LLM) to automatically generate natural language summaries of the market card (e.g., "This tract shows strong growth driven by an affluent, highly-educated population...") and to flag potential risks or opportunities based on the data.
 
-*   **🧪 Comprehensive Test Coverage:** Implement a full suite of tests to ensure long-term stability, including backend `pytest` unit/integration tests for services and API endpoints, and frontend end-to-end tests (with Cypress or Playwright) for critical user flows.
+*   **Comprehensive Test Coverage:** Implement a full suite of tests to ensure long-term stability, including backend `pytest` unit/integration tests for services and API endpoints, and frontend end-to-end tests (with Cypress or Playwright) for critical user flows.
 
-*   **💾 User-Saved Lists & Projects:** Allow authenticated users to save, name, and manage lists of addresses (e.g., "Downtown Portfolio," "Q3 Acquisition Targets"). This transforms the tool from a single-session utility into a persistent workspace.
+*   **User-Saved Lists & Projects:** Allow authenticated users to save, name, and manage lists of addresses (e.g., "Downtown Portfolio," "Q3 Acquisition Targets"). This transforms the tool from a single-session utility into a persistent workspace.
 
-*   **☁️ Cloud-Native Scalability:** Migrate the deployment from a single VM to a container orchestration platform like **Kubernetes** or a managed service like **AWS ECS / Google Cloud Run**. This enables automated scaling, zero-downtime rolling deployments, and better resource management.
+*   **Cloud-Native Scalability:** Migrate the deployment from a single VM to a container orchestration platform like **Kubernetes** or a managed service like **AWS ECS / Google Cloud Run**. This enables automated scaling, zero-downtime rolling deployments, and better resource management.
 
-*   **⏱️ Intelligent Caching with TTL:** Implement a Time-To-Live (TTL) policy on the PostgreSQL cache. This would automatically expire and refresh cached data after a set period (e.g., 30-90 days), ensuring data stays reasonably current without manual intervention.
+*   **Intelligent Caching with TTL:** Implement a Time-To-Live (TTL) policy on the PostgreSQL cache. This would automatically expire and refresh cached data after a set period (e.g., 30-90 days), ensuring data stays reasonably current without manual intervention.
 
-*   **📱 Full Responsiveness & Polished UI:** Thoroughly test and refine the UI for a seamless experience on tablet and mobile devices. Conduct a detailed review of the **dark mode** theme to ensure optimal color contrast and readability for all data visualizations.
+*   **Full Responsiveness & Polished UI:** Thoroughly test and refine the UI for a seamless experience on tablet and mobile devices. Conduct a detailed review of the **dark mode** theme to ensure optimal color contrast and readability for all data visualizations.
 
-*   **💡 Improved Code Quality & Maintainability:** Add comprehensive **code comments** and docstrings throughout the backend services and frontend hooks to improve long-term maintainability and ease onboarding for new developers.
+*   **Improved Code Quality & Maintainability:** Add comprehensive **code comments** and docstrings throughout the backend services and frontend hooks to improve long-term maintainability and ease onboarding for new developers.
